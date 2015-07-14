@@ -1,0 +1,4 @@
+Cauldron
+===
+
+Removes boilerplate code
