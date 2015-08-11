@@ -1,4 +1,5 @@
 from asyncio import coroutine
+from contextlib import contextmanager
 from functools import wraps
 from enum import Enum
 import aiopg
@@ -182,7 +183,7 @@ class PostgresStore:
             _cur = yield from _connection_source.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
         if cls._use_pool is False:
-            _cur = _VykedCursorContextManager(_connection_source, _cur)
+            _cur = cursor_context_manager(_connection_source, _cur)
 
         return _cur
 
@@ -361,20 +362,11 @@ class PostgresStore:
         return (yield from cur.fetchall())
 
 
-class _VykedCursorContextManager:
-    __slots__ = ('_conn', '_cur')
+@contextmanager
+def cursor_context_manager(conn, cur):
+    try:
+        yield cur
+    finally:
+        cur._impl.close()
+        conn.close()
 
-    def __init__(self, conn, cur):
-        self._conn = conn
-        self._cur = cur
-
-    def __enter__(self):
-        return self._cur
-
-    def __exit__(self, *args):
-        try:
-            self._cur._impl.close()
-            self._conn.close()
-        finally:
-            self._conn = None
-            self._cur = None
