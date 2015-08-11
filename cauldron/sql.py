@@ -107,6 +107,7 @@ def transaction(func):
 class PostgresStore:
     _pool = None
     _connection_params = {}
+    _use_pool = None
     _insert_string = "insert into {} ({}) values ({}) returning *;"
     _update_string = "update {} set ({}) = ({}) where ({}) returning *;"
     _select_all_string_with_condition = "select * from {} where ({}) order by {} limit {} offset {};"
