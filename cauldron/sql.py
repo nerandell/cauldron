@@ -170,7 +170,7 @@ class PostgresStore:
             new client-side cursor from existing db connection pool
         """
         _cur = None
-        if cls._use_pool is True:
+        if cls._use_pool:
             _connection_source = yield from cls.get_pool()
         else:
             _connection_source = yield from aiopg.connect(**cls._connection_params)
@@ -182,7 +182,7 @@ class PostgresStore:
         if cursor_type == _CursorType.DICT:
             _cur = yield from _connection_source.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
-        if cls._use_pool is False:
+        if not cls._use_pool:
             _cur = cursor_context_manager(_connection_source, _cur)
 
         return _cur
