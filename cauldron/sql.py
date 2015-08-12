@@ -159,6 +159,7 @@ class PostgresStore:
                                                maxsize=50,
                                                keepalives_idle=5,
                                                keepalives_interval=4,
+                                               echo = True,
                                                **cls._connection_params)
         return cls._pool
 
@@ -173,7 +174,7 @@ class PostgresStore:
         if cls._use_pool:
             _connection_source = yield from cls.get_pool()
         else:
-            _connection_source = yield from aiopg.connect(**cls._connection_params)
+            _connection_source = yield from aiopg.connect(echo=True, **cls._connection_params)
 
         if cursor_type == _CursorType.PLAIN:
             _cur = yield from _connection_source.cursor()
