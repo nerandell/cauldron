@@ -127,7 +127,8 @@ class PostgresStore:
     _COMMA = ', '
 
     @classmethod
-    def connect(cls, database: str, user: str, password: str, host: str, port: int, use_pool: bool=True):
+    def connect(cls, database: str, user: str, password: str, host: str, port: int, use_pool: bool=True,
+                enable_ssl: bool=False):
         """
         Sets connection parameters
         """
@@ -136,6 +137,7 @@ class PostgresStore:
         cls._connection_params['password'] = password
         cls._connection_params['host'] = host
         cls._connection_params['port'] = port
+        cls._connection_params['sslmode'] = 'prefer' if enable_ssl else 'disable'
         cls._use_pool = use_pool
 
     @classmethod
@@ -159,7 +161,7 @@ class PostgresStore:
                                                maxsize=50,
                                                keepalives_idle=5,
                                                keepalives_interval=4,
-                                               echo = True,
+                                               echo=True,
                                                **cls._connection_params)
         return cls._pool
 
@@ -370,4 +372,3 @@ def cursor_context_manager(conn, cur):
     finally:
         cur._impl.close()
         conn.close()
-
