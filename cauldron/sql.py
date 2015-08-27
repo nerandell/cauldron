@@ -127,7 +127,7 @@ class PostgresStore:
     _COMMA = ', '
 
     @classmethod
-    def connect(cls, database: str, user: str, password: str, host: str, port: int, use_pool: bool=False,
+    def connect(cls, database: str, user: str, password: str, host: str, port: int, use_pool: bool=True,
                 enable_ssl: bool=False):
         """
         Sets connection parameters
