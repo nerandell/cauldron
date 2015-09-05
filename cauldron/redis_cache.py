@@ -39,7 +39,7 @@ class RedisCache:
         with (yield from self._pool) as redis:
             if namespace is not None:
                 key = self._get_key(namespace, key)
-            yield from redis.get(key)
+            yield from redis.delete(key)
 
     def clear_namespace(self, namespace):
         with (yield from self._pool) as redis:
