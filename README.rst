@@ -69,6 +69,9 @@ Using Cauldron:
             rows = yield from cls.raw_query('select 1')
             print(rows)
 
+. _aiopg: https://github.com/aio-libs/aiopg
+. _aioredis: https://github.com/aio-libs/aioredis
+
 License
 -------
 ``cauldron`` is offered under the MIT license.
