@@ -33,6 +33,9 @@ Usage
 Cauldron currently supports postgres and redis. It uses aiopg_ and aioredis_ internally but removes a lot of
 boilerplate code that is usually written.
 
+.. _aiopg: https://github.com/aio-libs/aiopg
+.. _aioredis: https://github.com/aio-libs/aioredis
+
 Sample code using aiopg:
 
 .. code-block:: python
@@ -58,7 +61,6 @@ Sample code using aiopg:
 
 Using Cauldron:
 
-
 .. code-block:: python
 
     from cauldron import PostgresStore
@@ -68,9 +70,6 @@ Using Cauldron:
         def test_select(cls):
             rows = yield from cls.raw_query('select 1')
             print(rows)
-
-. _aiopg: https://github.com/aio-libs/aiopg
-. _aioredis: https://github.com/aio-libs/aioredis
 
 License
 -------
