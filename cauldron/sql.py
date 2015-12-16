@@ -127,10 +127,13 @@ class PostgresStore:
     _COMMA = ', '
 
     @classmethod
-    def connect(cls, database: str, user: str, password: str, host: str, port: int, use_pool: bool=True,
-                enable_ssl: bool=False):
+    def connect(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool=True,
+                enable_ssl: bool=False, minsize=1, maxsize=50, keepalives_idle=5, keepalives_interval=4, echo=False,
+                **kwargs):
         """
         Sets connection parameters
+        For more information on the parameters that is accepts,
+        see : http://www.postgresql.org/docs/9.2/static/libpq-connect.html
         """
         cls._connection_params['database'] = database
         cls._connection_params['user'] = user
@@ -138,10 +141,16 @@ class PostgresStore:
         cls._connection_params['host'] = host
         cls._connection_params['port'] = port
         cls._connection_params['sslmode'] = 'prefer' if enable_ssl else 'disable'
+        cls._connection_params['minsize'] = minsize
+        cls._connection_params['maxsize'] = maxsize
+        cls._connection_params['keepalives_idle'] = keepalives_idle
+        cls._connection_params['keepalives_interval'] = keepalives_interval
+        cls._connection_params['echo'] = echo
+        cls._connection_params.update(kwargs)
         cls._use_pool = use_pool
 
     @classmethod
-    def use_pool(cls, pool:Pool):
+    def use_pool(cls, pool: Pool):
         """
         Sets an existing connection pool instead of using connect() to make one
         """
@@ -157,12 +166,7 @@ class PostgresStore:
         if len(cls._connection_params) < 5:
             raise ConnectionError('Please call SQLStore.connect before calling this method')
         if not cls._pool:
-            cls._pool = yield from create_pool(minsize=1,
-                                               maxsize=50,
-                                               keepalives_idle=5,
-                                               keepalives_interval=4,
-                                               echo=False,
-                                               **cls._connection_params)
+            cls._pool = yield from create_pool(**cls._connection_params)
         return cls._pool
 
     @classmethod
