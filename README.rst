@@ -1,6 +1,9 @@
+
 Cauldron
 ========
-
+.. image:: https://badge.fury.io/py/cauldron.svg
+    :target: https://pypi.python.org/pypi/cauldron/1.0.14
+|
 Cauldron is an asyncio based library that removes boilerplate code when using databases.
 Currently it supports using postgresql and redis.
 
