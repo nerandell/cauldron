@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from functools import wraps
 from enum import Enum
 import aiopg
+import asyncio
 
 from aiopg import create_pool, Pool, Cursor
 
@@ -166,7 +167,10 @@ class PostgresStore:
         if len(cls._connection_params) < 5:
             raise ConnectionError('Please call SQLStore.connect before calling this method')
         if not cls._pool:
+            cls._pool = 'pending'
             cls._pool = yield from create_pool(**cls._connection_params)
+        while cls._pool == 'pending':
+            yield from asyncio.sleep(0.1)
         return cls._pool
 
     @classmethod
