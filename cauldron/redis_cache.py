@@ -1,21 +1,53 @@
 import asyncio
 import aioredis
+from asyncio import coroutine
 
 
 class RedisCache:
-    def __init__(self):
-        self._pool = None
+    _pool = None
+    _host = None
+    _port = None
+    _minsize = None
+    _maxsize = None
 
-    def connect(self, host, port, minsize=5, maxsize=10, loop=asyncio.get_event_loop()):
+    @classmethod
+    @coroutine
+    def get_pool(cls):
+        if not cls._pool:
+            with (yield from asyncio.Semaphore(1)):
+                if not cls._pool:
+                    cls._pool = yield from aioredis.create_pool((cls._host, cls._port), minsize=cls._minsize,
+                                                                maxsize=cls._maxsize)
+        return cls._pool
+
+    @classmethod
+    @coroutine
+    def connect_v2(cls, host, port, minsize=5, maxsize=10, loop=None):
+        """
+        Setup a connection pool params
+        :param host: Redis host
+        :param port: Redis port
+        :param loop: Event loop
+        """
+        cls._host = host
+        cls._port = port
+        cls._minsize = minsize
+        cls._maxsize = maxsize
+
+    @classmethod
+    @coroutine
+    def connect(cls, host, port, minsize=5, maxsize=10, loop=asyncio.get_event_loop()):
         """
         Setup a connection pool
         :param host: Redis host
         :param port: Redis port
         :param loop: Event loop
         """
-        self._pool = yield from aioredis.create_pool((host, port), minsize=minsize, maxsize=maxsize, loop=loop)
+        cls._pool = yield from aioredis.create_pool((host, port), minsize=minsize, maxsize=maxsize, loop=loop)
 
-    def set_key(self, key, value, namespace=None, expire=0):
+    @classmethod
+    @coroutine
+    def set_key(cls, key, value, namespace=None, expire=0):
         """
         Set a key in a cache.
         :param key: Key name
@@ -24,33 +56,41 @@ class RedisCache:
         :param expire: expiration
         :return:
         """
-        with (yield from self._pool) as redis:
+        with (yield from cls.get_pool()) as redis:
             if namespace is not None:
-                key = self._get_key(namespace, key)
+                key = cls._get_key(namespace, key)
             yield from redis.set(key, value, expire=expire)
 
-    def get_key(self, key, namespace=None):
-        with (yield from self._pool) as redis:
+    @classmethod
+    @coroutine
+    def get_key(cls, key, namespace=None):
+        with (yield from cls.get_pool()) as redis:
             if namespace is not None:
-                key = self._get_key(namespace, key)
+                key = cls._get_key(namespace, key)
             return (yield from redis.get(key, encoding='utf-8'))
 
-    def delete(self, key, namespace=None):
-        with (yield from self._pool) as redis:
+    @classmethod
+    @coroutine
+    def delete(cls, key, namespace=None):
+        with (yield from cls.get_pool()) as redis:
             if namespace is not None:
-                key = self._get_key(namespace, key)
+                key = cls._get_key(namespace, key)
             yield from redis.delete(key)
 
-    def clear_namespace(self, namespace):
-        with (yield from self._pool) as redis:
+    @classmethod
+    @coroutine
+    def clear_namespace(cls, namespace):
+        with (yield from cls.get_pool()) as redis:
             pattern = namespace + '*'
             keys = yield from redis.keys(pattern)
             if len(keys):
                 yield from redis.delete(*keys)
 
-    def exit(self):
-        if self._pool is not None:
-            self._pool.clear()
+    @classmethod
+    @coroutine
+    def exit(cls):
+        if cls._pool:
+            yield from cls._pool.clear()
 
     @staticmethod
     def _get_key(namespace, key):
