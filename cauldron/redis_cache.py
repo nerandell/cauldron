@@ -120,18 +120,17 @@ class RedisCache:
         def wrapped(func):
             @wraps(func)
             def redis_check(*args, **kwargs):
-                cls = args[0]
                 _args = ''
                 if args and len(args) > 0:
                     _args = str(args[1:])
                 redis_key = json.dumps(OrderedDict({'func': func.__name__, 'args': _args, 'kwargs': kwargs}))
                 digest_key = hashlib.md5(redis_key.encode('utf-8')).hexdigest()
-                result = yield from cls.hmget([digest_key], name_space)
+                result = yield from RedisCache.hmget([digest_key], name_space)
                 if result and len(result) > 0 and result[0]:
                     return json.loads(result[0].decode('utf-8'))
                 else:
                     result = yield from func(*args, **kwargs)
-                    yield from cls.hmset(digest_key, json.dumps(result), name_space)
+                    yield from RedisCache.hmset(digest_key, json.dumps(result), name_space)
                     return result
             return redis_check
         return wrapped
