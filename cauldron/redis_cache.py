@@ -9,12 +9,13 @@ class RedisCache:
     _port = None
     _minsize = None
     _maxsize = None
+    _lock = asyncio.Semaphore(1)
 
     @classmethod
     @coroutine
     def get_pool(cls):
         if not cls._pool:
-            with (yield from asyncio.Semaphore(1)):
+            with (yield from cls._lock):
                 if not cls._pool:
                     cls._pool = yield from aioredis.create_pool((cls._host, cls._port), minsize=cls._minsize,
                                                                 maxsize=cls._maxsize)
