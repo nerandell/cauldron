@@ -1,6 +1,10 @@
 import asyncio
 import aioredis
 from asyncio import coroutine
+from functools import wraps
+import json
+from collections import OrderedDict
+import hashlib
 
 
 class RedisCache:
@@ -72,6 +76,18 @@ class RedisCache:
 
     @classmethod
     @coroutine
+    def hmget(cls, fields, namespace=''):
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.hmget(namespace, *fields))
+
+    @classmethod
+    @coroutine
+    def hmset(cls, field, value, namespace=''):
+        with (yield from cls.get_pool()) as redis:
+            yield from redis.hmset(namespace, field, value)
+
+    @classmethod
+    @coroutine
     def delete(cls, key, namespace=None):
         with (yield from cls.get_pool()) as redis:
             if namespace is not None:
@@ -83,7 +99,10 @@ class RedisCache:
     def clear_namespace(cls, namespace):
         with (yield from cls.get_pool()) as redis:
             pattern = namespace + '*'
-            keys = yield from redis.keys(pattern)
+            keys = [namespace]
+            _keys = yield from redis.keys(pattern)
+            if _keys:
+                keys.extend(_keys)
             if len(keys):
                 yield from redis.delete(*keys)
 
@@ -96,3 +115,22 @@ class RedisCache:
     @staticmethod
     def _get_key(namespace, key):
         return namespace + ':' + key
+
+    def asyncio_redis_decorator(name_space=''):
+        def wrapped(func):
+            @wraps(func)
+            def redis_check(cls, *args, **kwargs):
+                redis_key = json.dumps(OrderedDict({'func': func.__name__, 'args': str(args[1:]), 'kwargs': kwargs}))
+                digest_key = hashlib.md5(redis_key.encode('utf-8')).hexdigest()
+                result = yield from cls.hmget([digest_key], name_space)
+                if result and len(result) > 0:
+                    return json.loads(result[0])
+                else:
+                    result = yield from func(*args, **kwargs)
+                    yield from cls.hmset(digest_key, json.dumps(result), name_space)
+                    return result
+            return redis_check
+        return wrapped
+
+
+
