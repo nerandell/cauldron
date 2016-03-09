@@ -26,6 +26,7 @@ class RedisCache:
         return cls._pool
 
     @classmethod
+    @coroutine
     def connect_v2(cls, host, port, minsize=5, maxsize=10, loop=None):
         """
         Setup a connection pool params
@@ -125,8 +126,8 @@ class RedisCache:
                 redis_key = json.dumps(OrderedDict({'func': func.__name__, 'args': _args, 'kwargs': kwargs}))
                 digest_key = hashlib.md5(redis_key.encode('utf-8')).hexdigest()
                 result = yield from cls.hmget([digest_key], name_space)
-                if result and len(result) > 0:
-                    return json.loads(result[0])
+                if result and len(result) > 0 and result[0]:
+                    return json.loads(result[0].decode('utf-8'))
                 else:
                     result = yield from func(*args, **kwargs)
                     yield from cls.hmset(digest_key, json.dumps(result), name_space)
