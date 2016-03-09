@@ -23,7 +23,7 @@ class RedisCache:
                 if not cls._pool:
                     cls._pool = yield from aioredis.create_pool((cls._host, cls._port), minsize=cls._minsize,
                                                                 maxsize=cls._maxsize)
-        return cls._pool
+        return (yield from cls._pool)
 
     @classmethod
     @coroutine
@@ -119,7 +119,8 @@ class RedisCache:
     def asyncio_redis_decorator(name_space=''):
         def wrapped(func):
             @wraps(func)
-            def redis_check(cls, *args, **kwargs):
+            def redis_check(*args, **kwargs):
+                cls = args[0]
                 _args = ''
                 if args and len(args) > 0:
                     _args = str(args[1:])
