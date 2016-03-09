@@ -26,7 +26,6 @@ class RedisCache:
         return cls._pool
 
     @classmethod
-    @coroutine
     def connect_v2(cls, host, port, minsize=5, maxsize=10, loop=None):
         """
         Setup a connection pool params
