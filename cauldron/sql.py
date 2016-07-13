@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from functools import wraps
 from enum import Enum
 import aiopg
+import asyncio
 
 from aiopg import create_pool, Pool, Cursor
 
@@ -11,70 +12,76 @@ import psycopg2
 _CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
 
 
-def dict_cursor(func):
-    """
-    Decorator that provides a dictionary cursor to the calling function
+def dict_cursor_parameterized(use_replica=False):
+    def dict_cursor(func):
+        """
+        Decorator that provides a dictionary cursor to the calling function
 
-    Adds the cursor as the second argument to the calling functions
+        Adds the cursor as the second argument to the calling functions
 
-    Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor(cursor_type=CursorType.DICT) coroutine or provides such an object
-    as the first argument in its signature
+        Requires that the function being decorated is an instance of a class or object
+        that yields a cursor from a get_cursor(cursor_type=CursorType.DICT) coroutine or provides such an object
+        as the first argument in its signature
 
-    Yields:
-        A client-side dictionary cursor
-    """
+        Yields:
+            A client-side dictionary cursor
+        """
 
-    @wraps(func)
-    def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(_CursorType.DICT)) as c:
-            return (yield from func(cls, c, *args, **kwargs))
+        @wraps(func)
+        def wrapper(cls, *args, **kwargs):
+            with (yield from cls.get_cursor(_CursorType.DICT, use_replica=use_replica)) as c:
+                return (yield from func(cls, c, *args, **kwargs))
 
-    return wrapper
-
-
-def cursor(func):
-    """
-    Decorator that provides a cursor to the calling function
-
-    Adds the cursor as the second argument to the calling functions
-
-    Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor() coroutine or provides such an object
-    as the first argument in its signature
-
-    Yields:
-        A client-side cursor
-    """
-
-    @wraps(func)
-    def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor()) as c:
-            return (yield from func(cls, c, *args, **kwargs))
-
-    return wrapper
+        return wrapper
+    return dict_cursor
 
 
-def nt_cursor(func):
-    """
-    Decorator that provides a namedtuple cursor to the calling function
+def cursor_parameterized(use_replica=False):
+    def cursor(func):
+        """
+        Decorator that provides a cursor to the calling function
 
-    Adds the cursor as the second argument to the calling functions
+        Adds the cursor as the second argument to the calling functions
 
-    Requires that the function being decorated is an instance of a class or object
-    that yields a cursor from a get_cursor(cursor_type=CursorType.NAMEDTUPLE) coroutine or provides such an object
-    as the first argument in its signature
+        Requires that the function being decorated is an instance of a class or object
+        that yields a cursor from a get_cursor() coroutine or provides such an object
+        as the first argument in its signature
 
-    Yields:
-        A client-side namedtuple cursor
-    """
+        Yields:
+            A client-side cursor
+        """
 
-    @wraps(func)
-    def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
-            return (yield from func(cls, c, *args, **kwargs))
+        @wraps(func)
+        def wrapper(cls, *args, **kwargs):
+            with (yield from cls.get_cursor(use_replica=use_replica)) as c:
+                return (yield from func(cls, c, *args, **kwargs))
 
-    return wrapper
+        return wrapper
+    return cursor
+
+
+def nt_cursor_parameterized(use_replica=False):
+    def nt_cursor(func):
+        """
+        Decorator that provides a namedtuple cursor to the calling function
+
+        Adds the cursor as the second argument to the calling functions
+
+        Requires that the function being decorated is an instance of a class or object
+        that yields a cursor from a get_cursor(cursor_type=CursorType.NAMEDTUPLE) coroutine or provides such an object
+        as the first argument in its signature
+
+        Yields:
+            A client-side namedtuple cursor
+        """
+
+        @wraps(func)
+        def wrapper(cls, *args, **kwargs):
+            with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE, use_replica=use_replica)) as c:
+                return (yield from func(cls, c, *args, **kwargs))
+
+        return wrapper
+    return nt_cursor
 
 
 def transaction(func):
@@ -107,7 +114,9 @@ def transaction(func):
 
 class PostgresStore:
     _pool = None
+    _replica_pool = None
     _connection_params = {}
+    _replica_connection_params = {}
     _use_pool = None
     _insert_string = "insert into {} ({}) values ({}) returning *;"
     _update_string = "update {} set ({}) = ({}) where ({}) returning *;"
@@ -125,10 +134,11 @@ class PostgresStore:
     _WHERE_AND = '{} {} %s'
     _PLACEHOLDER = ' %s,'
     _COMMA = ', '
+    _pool_pending = asyncio.Semaphore(1)
 
     @classmethod
     def connect(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool=True,
-                enable_ssl: bool=False, minsize=1, maxsize=50, keepalives_idle=5, keepalives_interval=4, echo=False,
+                enable_ssl: bool=False, minsize=1, maxsize=10, keepalives_idle=5, keepalives_interval=4, echo=False,
                 **kwargs):
         """
         Sets connection parameters
@@ -150,6 +160,29 @@ class PostgresStore:
         cls._use_pool = use_pool
 
     @classmethod
+    def connect_replica(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool = True,
+                enable_ssl: bool = False, minsize=1, maxsize=30, keepalives_idle=5, keepalives_interval=4, echo=False,
+                **kwargs):
+        """
+        Sets connection parameters
+        For more information on the parameters that is accepts,
+        see : http://www.postgresql.org/docs/9.2/static/libpq-connect.html
+        """
+        cls._replica_connection_params['database'] = database
+        cls._replica_connection_params['user'] = user
+        cls._replica_connection_params['password'] = password
+        cls._replica_connection_params['host'] = host
+        cls._replica_connection_params['port'] = port
+        cls._replica_connection_params['sslmode'] = 'prefer' if enable_ssl else 'disable'
+        cls._replica_connection_params['minsize'] = minsize
+        cls._replica_connection_params['maxsize'] = maxsize
+        cls._replica_connection_params['keepalives_idle'] = keepalives_idle
+        cls._replica_connection_params['keepalives_interval'] = keepalives_interval
+        cls._replica_connection_params['echo'] = echo
+        cls._replica_connection_params.update(kwargs)
+        cls._use_pool = use_pool
+
+    @classmethod
     def use_pool(cls, pool: Pool):
         """
         Sets an existing connection pool instead of using connect() to make one
@@ -166,21 +199,32 @@ class PostgresStore:
         if len(cls._connection_params) < 5:
             raise ConnectionError('Please call SQLStore.connect before calling this method')
         if not cls._pool:
-            cls._pool = yield from create_pool(**cls._connection_params)
-        return cls._pool
+            with (yield from cls._pool_pending):
+                if not cls._pool:
+                    cls._pool = yield from create_pool(**cls._connection_params)
+                if not cls._replica_pool:
+                    cls._replica_pool = yield from create_pool(**cls._replica_connection_params)
+        return cls._pool, cls._replica_pool
 
     @classmethod
     @coroutine
-    def get_cursor(cls, cursor_type=_CursorType.PLAIN) -> Cursor:
+    def get_cursor(cls, cursor_type=_CursorType.PLAIN, use_replica=None) -> Cursor:
         """
         Yields:
             new client-side cursor from existing db connection pool
         """
         _cur = None
         if cls._use_pool:
-            _connection_source = yield from cls.get_pool()
+            _pools = yield from cls.get_pool()
+            if use_replica:
+                _connection_source = _pools[1]
+            else:
+                _connection_source = _pools[0]
         else:
-            _connection_source = yield from aiopg.connect(echo=False, **cls._connection_params)
+            if use_replica:
+                _connection_source = yield from aiopg.connect(echo=False, **cls._replica_connection_params)
+            else:
+                _connection_source = yield from aiopg.connect(echo=False, **cls._connection_params)
 
         if cursor_type == _CursorType.PLAIN:
             _cur = yield from _connection_source.cursor()
@@ -196,7 +240,7 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    @cursor
+    @cursor_parameterized(use_replica=True)
     def count(cls, cur, table:str, where_keys: list=None):
         """
         gives the number of records in the table
@@ -222,7 +266,7 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    @nt_cursor
+    @nt_cursor_parameterized(use_replica=False)
     def insert(cls, cur, table: str, values: dict):
         """
         Creates an insert statement with only chosen fields
@@ -243,7 +287,7 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    @nt_cursor
+    @nt_cursor_parameterized(use_replica=False)
     def update(cls, cur, table: str, values: dict, where_keys: list) -> tuple:
         """
         Creates an update query with only chosen fields
@@ -281,7 +325,7 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    @cursor
+    @cursor_parameterized(use_replica=False)
     def delete(cls, cur, table: str, where_keys: list):
         """
         Creates a delete query with where keys
@@ -305,7 +349,7 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    @nt_cursor
+    @nt_cursor_parameterized(use_replica=True)
     def select(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
                offset=0):
         """
@@ -352,7 +396,7 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    @nt_cursor
+    @nt_cursor_parameterized(use_replica=False)
     def raw_sql(cls, cur, query: str, values: tuple):
         """
         Run a raw sql query
