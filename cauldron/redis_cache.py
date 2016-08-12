@@ -94,6 +94,12 @@ class RedisCache:
             yield from redis.delete(key)
 
     @classmethod
+    def hdel(cls, namespace, key):
+        with (yield from cls.get_pool()) as redis:
+            if namespace is not None:
+                yield from redis.hdel(namespace, key)
+
+    @classmethod
     @coroutine
     def clear_namespace(cls, namespace):
         with (yield from cls.get_pool()) as redis:
