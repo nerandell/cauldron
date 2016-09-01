@@ -112,10 +112,14 @@ class PostgresStore:
     _use_pool = None
     _insert_string = "insert into {} ({}) values ({}) returning *;"
     _update_string = "update {} set ({}) = ({}) where ({}) returning *;"
-    _select_all_string_with_condition = "select * from {} where ({}) order by {} limit {} offset {};"
-    _select_all_string = "select * from {} order by {} limit {} offset {};"
-    _select_selective_column = "select {} from {} order by {} limit {} offset {};"
-    _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {};"
+    _select_all_string_with_condition = "select * from {} where ({}) limit {} offset {};"
+    _select_all_string = "select * from {} limit {} offset {};"
+    _select_selective_column = "select {} from {} limit {} offset {};"
+    _select_selective_column_with_condition = "select {} from {} where ({}) limit {} offset {};"
+    _select_all_string_with_condition_and_order_by = "select * from {} where ({}) order by {} limit {} offset {};"
+    _select_all_string_with_order_by = "select * from {} order by {} limit {} offset {};"
+    _select_selective_column_with_order_by = "select {} from {} order by {} limit {} offset {};"
+    _select_selective_column_with_condition_and_order_by = "select {} from {} where ({}) order by {} limit {} offset {};"
     _delete_query = "delete from {} where ({});"
     _count_query = "select count(*) from {};"
     _count_query_where = "select count(*) from {} where {};"
@@ -310,7 +314,7 @@ class PostgresStore:
     @classmethod
     @coroutine
     @nt_cursor
-    def select(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
+    def select(cls, cur, table: str, order_by: str=None, columns: list=None, where_keys: list=None, limit=100,
                offset=0):
         """
         Creates a select query for selective columns with where keys
@@ -336,19 +340,32 @@ class PostgresStore:
             columns_string = cls._COMMA.join(columns)
             if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
-                                                                           order_by, limit, offset)
+                if order_by:
+                    query = cls._select_selective_column_with_condition_and_order_by.format(columns_string, table, where_clause,
+                                                                               order_by, limit, offset)
+                else:
+                    query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
+                                                                                limit, offset)
                 q, t = query, values
             else:
-                query = cls._select_selective_column.format(columns_string, table, order_by, limit, offset)
+                if order_by:
+                    query = cls._select_selective_column_with_order_by.format(columns_string, table, order_by, limit, offset)
+                else:
+                    query = cls._select_selective_column.format(columns_string, table, limit, offset)
                 q, t = query, ()
         else:
             if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_all_string_with_condition.format(table, where_clause, order_by, limit, offset)
+                if order_by:
+                    query = cls._select_all_string_with_condition_and_order_by.format(table, where_clause, order_by, limit, offset)
+                else:
+                    query = cls._select_all_string_with_condition.format(table, where_clause, limit, offset)
                 q, t = query, values
             else:
-                query = cls._select_all_string.format(table, order_by, limit, offset)
+                if order_by:
+                    query = cls._select_all_string_with_order_by.format(table, order_by, limit, offset)
+                else:
+                    query = cls._select_all_string.format(table, limit, offset)
                 q, t = query, ()
 
         yield from cur.execute(q, t)
