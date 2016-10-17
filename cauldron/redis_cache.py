@@ -128,7 +128,7 @@ class RedisCache:
                 _args = ''
                 if args and len(args) > 0:
                     _args = str(args[1:])
-                redis_key = json.dumps(OrderedDict({'func': func.__name__, 'args': _args, 'kwargs': kwargs}))
+                redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
                 digest_key = hashlib.md5(redis_key.encode('utf-8')).hexdigest()
                 result = yield from RedisCache.hmget([digest_key], name_space)
                 if result and len(result) > 0 and result[0]:
