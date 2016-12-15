@@ -100,6 +100,12 @@ class RedisCache:
                 yield from redis.hdel(namespace, key)
 
     @classmethod
+    def hgetall(cls, namespace):
+        with (yield from cls.get_pool()) as redis:
+            if namespace is not None:
+                return (yield from redis.hgetall(namespace, encoding='utf-8'))
+
+    @classmethod
     @coroutine
     def clear_namespace(cls, namespace):
         with (yield from cls.get_pool()) as redis:
