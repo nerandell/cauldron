@@ -3,7 +3,6 @@ import aioredis
 from asyncio import coroutine
 from functools import wraps
 import json
-from collections import OrderedDict
 import hashlib
 
 
@@ -14,6 +13,7 @@ class RedisCache:
     _minsize = None
     _maxsize = None
     _lock = asyncio.Semaphore(1)
+    _utf8 = 'utf-8'
 
     @classmethod
     @coroutine
@@ -71,7 +71,7 @@ class RedisCache:
         with (yield from cls.get_pool()) as redis:
             if namespace is not None:
                 key = cls._get_key(namespace, key)
-            return (yield from redis.get(key, encoding='utf-8'))
+            return (yield from redis.get(key, encoding=cls._utf8))
 
     @classmethod
     @coroutine
@@ -103,19 +103,31 @@ class RedisCache:
     def hgetall(cls, namespace):
         with (yield from cls.get_pool()) as redis:
             if namespace is not None:
-                return (yield from redis.hgetall(namespace, encoding='utf-8'))
+                return (yield from redis.hgetall(namespace, encoding=cls._utf8))
 
     @classmethod
     @coroutine
-    def clear_namespace(cls, namespace):
+    def clear_namespace(cls, namespace) -> int:
+        pattern = namespace + '*'
+        return (yield from cls._delete_by_pattern(pattern))
+
+    @classmethod
+    @coroutine
+    def _delete_by_pattern(cls, pattern: str) -> int:
+        if not pattern:
+            return 0
         with (yield from cls.get_pool()) as redis:
-            pattern = namespace + '*'
-            keys = [namespace]
             _keys = yield from redis.keys(pattern)
             if _keys:
-                keys.extend(_keys)
-            if len(keys):
-                yield from redis.delete(*keys)
+                yield from redis.delete(*_keys)
+        return len(_keys)
+
+    @classmethod
+    @coroutine
+    def delete_by_prefix(cls, prefix, namespace=None):
+        prefix_with_namespace = cls._get_key(namespace, prefix) if namespace else prefix
+        pattern = '{}*'.format(prefix_with_namespace)
+        return (yield from cls._delete_by_pattern(pattern))
 
     @classmethod
     @coroutine
@@ -127,7 +139,8 @@ class RedisCache:
     def _get_key(namespace, key):
         return namespace + ':' + key
 
-    def asyncio_redis_decorator(name_space=''):
+    @classmethod
+    def asyncio_redis_decorator(cls, name_space=''):
         def wrapped(func):
             @wraps(func)
             def redis_check(*args, **kwargs):
@@ -135,10 +148,10 @@ class RedisCache:
                 if args and len(args) > 0:
                     _args = str(args[1:])
                 redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
-                digest_key = hashlib.md5(redis_key.encode('utf-8')).hexdigest()
+                digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
                 result = yield from RedisCache.hmget([digest_key], name_space)
                 if result and len(result) > 0 and result[0]:
-                    return json.loads(result[0].decode('utf-8'))
+                    return json.loads(result[0].decode(cls._utf8))
                 else:
                     result = yield from func(*args, **kwargs)
                     yield from RedisCache.hmset(digest_key, json.dumps(result), name_space)
@@ -146,7 +159,8 @@ class RedisCache:
             return redis_check
         return wrapped
 
-    def redis_cache_decorator(name_space='', expire_time=0):
+    @classmethod
+    def redis_cache_decorator(cls, name_space='', expire_time=0):
         def wrapped(func):
             @wraps(func)
             def apply_cache(*args, **kwargs):
@@ -154,7 +168,7 @@ class RedisCache:
                 if args and len(args) > 0:
                     _args = str(args[1:])
                 redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
-                digest_key = hashlib.md5(redis_key.encode('utf-8')).hexdigest()
+                digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
                 result = yield from RedisCache.get_key(digest_key, name_space)
                 if result:
                     return json.loads(result)
