@@ -159,7 +159,8 @@ class RedisCache:
             return redis_check
         return wrapped
 
-    def redis_cache_decorator(name_space='', expire_time=0):
+    @classmethod
+    def redis_cache_decorator(cls, name_space='', expire_time=0):
         def wrapped(func):
             @wraps(func)
             def apply_cache(*args, **kwargs):
@@ -167,7 +168,7 @@ class RedisCache:
                 if args and len(args) > 0:
                     _args = str(args[1:])
                 redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
-                digest_key = hashlib.md5(redis_key.encode('utf-8')).hexdigest()
+                digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
                 result = yield from RedisCache.get_key(digest_key, name_space)
                 if result:
                     return json.loads(result)
