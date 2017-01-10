@@ -4,6 +4,7 @@ from functools import wraps
 from enum import Enum
 import aiopg
 import asyncio
+import logging
 
 from aiopg import create_pool, Pool, Cursor
 
@@ -187,6 +188,7 @@ class PostgresStore:
         Periodically cleanses idle connections in pool
         """
         yield from asyncio.sleep(cls.refresh_period * 60)
+        logging.getLogger().info("Clearing unused DB connections")
         yield from cls._pool.clear()
         asyncio.async(cls._periodic_cleansing())
 
