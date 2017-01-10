@@ -135,6 +135,7 @@ class PostgresStore:
     @classmethod
     def connect(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool=True,
                 enable_ssl: bool=False, minsize=1, maxsize=30, keepalives_idle=5, keepalives_interval=4, echo=False,
+                refresh_period=30, 
                 **kwargs):
         """
         Sets connection parameters
@@ -154,6 +155,7 @@ class PostgresStore:
         cls._connection_params['echo'] = echo
         cls._connection_params.update(kwargs)
         cls._use_pool = use_pool
+        cls.refresh_period = refresh_period
 
     @classmethod
     def use_pool(cls, pool: Pool):
@@ -175,7 +177,19 @@ class PostgresStore:
             with (yield from cls._pool_pending):
                 if not cls._pool:
                     cls._pool = yield from create_pool(**cls._connection_params)
+                    asyncio.async(cls._periodic_cleansing())
         return cls._pool
+
+    @classmethod
+    @coroutine
+    def _periodic_cleansing(cls):
+        """
+        Periodically cleanses idle connections in pool
+        """
+        yield from asyncio.sleep(cls.refresh_period * 60)
+        yield from cls._pool.clear()
+        asyncio.async(cls._periodic_cleansing())
+
 
     @classmethod
     @coroutine
