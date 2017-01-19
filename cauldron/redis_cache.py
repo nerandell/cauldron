@@ -67,6 +67,22 @@ class RedisCache:
 
     @classmethod
     @coroutine
+    def set_key_if_not_exists(cls, key, value, namespace=None, expire=0):
+        """
+        Set a redis key and return True if the key does not exists else return False
+        :param key: Key name
+        :param value: Value
+        :param namespace : Namespace to associate the key with
+        :param expire: expiration
+        :return:
+        """
+        with (yield from cls.get_pool()) as redis:
+            if namespace is not None:
+                key = cls._get_key(namespace, key)
+            return (yield from redis.set(key, value, expire=expire, exist='SET_IF_NOT_EXIST'))
+
+    @classmethod
+    @coroutine
     def get_key(cls, key, namespace=None):
         with (yield from cls.get_pool()) as redis:
             if namespace is not None:
@@ -177,3 +193,13 @@ class RedisCache:
                 return result
             return apply_cache
         return wrapped
+
+    @classmethod
+    @coroutine
+    def run_lua(cls, script: str, keys: list(), args: list = list(), namespace=None):
+        with (yield from cls.get_pool()) as redis:
+            if namespace:
+                for i in range(0,len(keys)):
+                    keys[i] = cls._get_key(namespace, keys[i])
+            if script:
+                return (yield from redis.eval(script=script, keys=keys, args=args))
