@@ -77,7 +77,7 @@ class RedisCache:
         :return:
         """
         with (yield from cls.get_pool()) as redis:
-            if namespace is not None:
+            if namespace:
                 key = cls._get_key(namespace, key)
             return (yield from redis.set(key, value, expire=expire, exist='SET_IF_NOT_EXIST'))
 
@@ -196,11 +196,11 @@ class RedisCache:
 
     @classmethod
     @coroutine
-    def run_lua(cls, script: str, keys: list(), args: list = list(), namespace=None):
+    def run_lua(cls, script: str, keys: list, args: list = None, namespace=None):
+        args = args or []
         with (yield from cls.get_pool()) as redis:
-            if namespace:
-                for i in range(0,len(keys)):
-                    keys[i] = cls._get_key(namespace, keys[i])
             if script:
+                if namespace:
+                    keys = [cls._get_key(namespace, key) for key in keys]
                 return (yield from redis.eval(script=script, keys=keys, args=args))
             return None
