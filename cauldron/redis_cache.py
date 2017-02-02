@@ -203,3 +203,4 @@ class RedisCache:
                     keys[i] = cls._get_key(namespace, keys[i])
             if script:
                 return (yield from redis.eval(script=script, keys=keys, args=args))
+            return None
