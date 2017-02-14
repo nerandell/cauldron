@@ -67,10 +67,10 @@ class RedisCache:
 
     @classmethod
     @coroutine
-    def set_key_if_not_exists_increment_value(cls, key):
+    def increment_value(cls, key):
         # Set a redis key and increment the value by one
         with (yield from cls.get_pool()) as redis:
-            return (yield from redis.incr(key))
+            yield from redis.incr(key)
 
     @classmethod
     @coroutine
