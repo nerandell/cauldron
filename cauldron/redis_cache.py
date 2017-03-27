@@ -67,9 +67,11 @@ class RedisCache:
 
     @classmethod
     @coroutine
-    def increment_value(cls, key):
+    def increment_value(cls, key, namespace=None):
         # Set a redis key and increment the value by one
         with (yield from cls.get_pool()) as redis:
+            if namespace is not None:
+                key = cls._get_key(namespace, key)
             yield from redis.incr(key)
 
     @classmethod
