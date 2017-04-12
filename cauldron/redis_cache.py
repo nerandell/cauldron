@@ -225,4 +225,4 @@ class RedisCache:
         if pattern_str:
             with (yield from cls.get_pool()) as redis:
                 return (yield from redis.keys(pattern_str))
-
+        return []
