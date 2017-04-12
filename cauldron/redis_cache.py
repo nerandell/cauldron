@@ -213,3 +213,16 @@ class RedisCache:
                     keys = [cls._get_key(namespace, key) for key in keys]
                 return (yield from redis.eval(script=script, keys=keys, args=args))
             return None
+
+    @classmethod
+    @coroutine
+    def keys(cls, pattern_str:str):
+        """
+        Function to get all keys in redis matching to pattern_str
+        :param pattern_str: keys pattern
+        :return: list of redis keys
+        """
+        if pattern_str:
+            with (yield from cls.get_pool()) as redis:
+                return (yield from redis.keys(pattern_str))
+
