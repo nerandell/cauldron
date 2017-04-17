@@ -285,7 +285,7 @@ class PostgresStore:
         for record in records:
             value_ordered.append([record[key] for key in records[0]])
         value_place_holder = cls._LPAREN + cls._PLACEHOLDER*len(records[0])[:-1] + cls._RPAREN
-        values = ','.join(cur.mogrify(value_place_holder, rec) for rec in value_ordered)
+        values = ','.join(cur.mogrify(value_place_holder, tuple(rec)) for rec in value_ordered)
         yield from cur.execute(cls._bulk_insert_string.format(table, keys) + values + cls._return_val)
         return (yield from cur.fetchall())
 
