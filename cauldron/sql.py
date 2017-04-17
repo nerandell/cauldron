@@ -3,6 +3,8 @@ from contextlib import contextmanager
 from functools import wraps
 from enum import Enum
 import aiopg
+import asyncio
+import logging
 
 from aiopg import create_pool, Pool, Cursor
 
@@ -110,11 +112,16 @@ class PostgresStore:
     _connection_params = {}
     _use_pool = None
     _insert_string = "insert into {} ({}) values ({}) returning *;"
+    _bulk_insert_string = "insert into {} ({}) values"
     _update_string = "update {} set ({}) = ({}) where ({}) returning *;"
-    _select_all_string_with_condition = "select * from {} where ({}) order by {} limit {} offset {};"
-    _select_all_string = "select * from {} order by {} limit {} offset {};"
-    _select_selective_column = "select {} from {} order by {} limit {} offset {};"
-    _select_selective_column_with_condition = "select {} from {} where ({}) order by {} limit {} offset {};"
+    _select_all_string_with_condition = "select * from {} where ({}) limit {} offset {};"
+    _select_all_string = "select * from {} limit {} offset {};"
+    _select_selective_column = "select {} from {} limit {} offset {};"
+    _select_selective_column_with_condition = "select {} from {} where ({}) limit {} offset {};"
+    _select_all_string_with_condition_and_order_by = "select * from {} where ({}) order by {} limit {} offset {};"
+    _select_all_string_with_order_by = "select * from {} order by {} limit {} offset {};"
+    _select_selective_column_with_order_by = "select {} from {} order by {} limit {} offset {};"
+    _select_selective_column_with_condition_and_order_by = "select {} from {} where ({}) order by {} limit {} offset {};"
     _delete_query = "delete from {} where ({});"
     _count_query = "select count(*) from {};"
     _count_query_where = "select count(*) from {} where {};"
@@ -125,10 +132,13 @@ class PostgresStore:
     _WHERE_AND = '{} {} %s'
     _PLACEHOLDER = ' %s,'
     _COMMA = ', '
+    _pool_pending = asyncio.Semaphore(1)
+    _return_val = ' returning *;'
 
     @classmethod
     def connect(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool=True,
-                enable_ssl: bool=False, minsize=1, maxsize=50, keepalives_idle=5, keepalives_interval=4, echo=False,
+                enable_ssl: bool=False, minsize=1, maxsize=30, keepalives_idle=5, keepalives_interval=4, echo=False,
+                refresh_period=30, 
                 **kwargs):
         """
         Sets connection parameters
@@ -148,6 +158,7 @@ class PostgresStore:
         cls._connection_params['echo'] = echo
         cls._connection_params.update(kwargs)
         cls._use_pool = use_pool
+        cls.refresh_period = refresh_period
 
     @classmethod
     def use_pool(cls, pool: Pool):
@@ -166,8 +177,23 @@ class PostgresStore:
         if len(cls._connection_params) < 5:
             raise ConnectionError('Please call SQLStore.connect before calling this method')
         if not cls._pool:
-            cls._pool = yield from create_pool(**cls._connection_params)
+            with (yield from cls._pool_pending):
+                if not cls._pool:
+                    cls._pool = yield from create_pool(**cls._connection_params)
+                    asyncio.async(cls._periodic_cleansing())
         return cls._pool
+
+    @classmethod
+    @coroutine
+    def _periodic_cleansing(cls):
+        """
+        Periodically cleanses idle connections in pool
+        """
+        yield from asyncio.sleep(cls.refresh_period * 60)
+        logging.getLogger().info("Clearing unused DB connections")
+        yield from cls._pool.clear()
+        asyncio.async(cls._periodic_cleansing())
+
 
     @classmethod
     @coroutine
@@ -244,6 +270,29 @@ class PostgresStore:
     @classmethod
     @coroutine
     @nt_cursor
+    def bulk_insert(cls, cur, table: str, records: list):
+        """
+        Creates an insert statement with only chosen fields for a set of entries
+
+        Args:
+        table: a string indicating the name of the table
+        records: A list of dictionaries consisting of all the records to be inserted
+        :Returns:
+           A set 'Record' objects with table columns as properties
+        """
+        keys = cls._COMMA.join(records[0].keys())
+        value_ordered = list()
+        for record in records:
+            value_ordered.append([record[key] for key in records[0]])
+        value_place_holder = cls._LPAREN + cls._PLACEHOLDER*len(records[0])[:-1] + cls._RPAREN
+        values = ','.join(cur.mogrify(value_place_holder, tuple(rec)) for rec in value_ordered)
+        yield from cur.execute(cls._bulk_insert_string.format(table, keys) + values + cls._return_val)
+        return (yield from cur.fetchall())
+
+
+    @classmethod
+    @coroutine
+    @nt_cursor
     def update(cls, cur, table: str, values: dict, where_keys: list) -> tuple:
         """
         Creates an update query with only chosen fields
@@ -306,7 +355,7 @@ class PostgresStore:
     @classmethod
     @coroutine
     @nt_cursor
-    def select(cls, cur, table: str, order_by: str, columns: list=None, where_keys: list=None, limit=100,
+    def select(cls, cur, table: str, order_by: str=None, columns: list=None, where_keys: list=None, limit=100,
                offset=0):
         """
         Creates a select query for selective columns with where keys
@@ -332,19 +381,32 @@ class PostgresStore:
             columns_string = cls._COMMA.join(columns)
             if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
-                                                                           order_by, limit, offset)
+                if order_by:
+                    query = cls._select_selective_column_with_condition_and_order_by.format(columns_string, table, where_clause,
+                                                                               order_by, limit, offset)
+                else:
+                    query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
+                                                                                limit, offset)
                 q, t = query, values
             else:
-                query = cls._select_selective_column.format(columns_string, table, order_by, limit, offset)
+                if order_by:
+                    query = cls._select_selective_column_with_order_by.format(columns_string, table, order_by, limit, offset)
+                else:
+                    query = cls._select_selective_column.format(columns_string, table, limit, offset)
                 q, t = query, ()
         else:
             if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
-                query = cls._select_all_string_with_condition.format(table, where_clause, order_by, limit, offset)
+                if order_by:
+                    query = cls._select_all_string_with_condition_and_order_by.format(table, where_clause, order_by, limit, offset)
+                else:
+                    query = cls._select_all_string_with_condition.format(table, where_clause, limit, offset)
                 q, t = query, values
             else:
-                query = cls._select_all_string.format(table, order_by, limit, offset)
+                if order_by:
+                    query = cls._select_all_string_with_order_by.format(table, order_by, limit, offset)
+                else:
+                    query = cls._select_all_string.format(table, limit, offset)
                 q, t = query, ()
 
         yield from cur.execute(q, t)
