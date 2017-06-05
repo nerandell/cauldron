@@ -112,6 +112,7 @@ class PostgresStore:
     _connection_params = {}
     _use_pool = None
     _insert_string = "insert into {} ({}) values ({}) returning *;"
+    _bulk_insert_string = "insert into {} ({}) values"
     _update_string = "update {} set ({}) = ({}) where ({}) returning *;"
     _select_all_string_with_condition = "select * from {} where ({}) limit {} offset {};"
     _select_all_string = "select * from {} limit {} offset {};"
@@ -132,6 +133,7 @@ class PostgresStore:
     _PLACEHOLDER = ' %s,'
     _COMMA = ', '
     _pool_pending = asyncio.Semaphore(1)
+    _return_val = ' returning *;'
 
     @classmethod
     def connect(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool=True,
@@ -264,6 +266,29 @@ class PostgresStore:
         query = cls._insert_string.format(table, keys, value_place_holder[:-1])
         yield from cur.execute(query, tuple(values.values()))
         return (yield from cur.fetchone())
+
+    @classmethod
+    @coroutine
+    @nt_cursor
+    def bulk_insert(cls, cur, table: str, records: list):
+        """
+        Creates an insert statement with only chosen fields for a set of entries
+
+        Args:
+        table: a string indicating the name of the table
+        records: A list of dictionaries consisting of all the records to be inserted
+        :Returns:
+           A set 'Record' objects with table columns as properties
+        """
+        keys = cls._COMMA.join(records[0].keys())
+        value_ordered = list()
+        for record in records:
+            value_ordered.append([record[key] for key in records[0]])
+        value_place_holder = cls._LPAREN + (cls._PLACEHOLDER*len(records[0]))[:-1] + cls._RPAREN
+        values = ','.join((yield from cur.mogrify(value_place_holder, tuple(rec))).decode("utf-8") for rec in value_ordered)
+        yield from cur.execute(cls._bulk_insert_string.format(table, keys) + values + cls._return_val)
+        return (yield from cur.fetchall())
+
 
     @classmethod
     @coroutine
