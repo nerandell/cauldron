@@ -415,6 +415,19 @@ class PostgresStore:
     @classmethod
     @coroutine
     @nt_cursor
+    def call_stored_procedure(cls, cur, procname, parameters=None, timeout=None):
+        yield from cur.callproc(procname, parameters=parameters, timeout=timeout)
+        return (yield from cur.fetchall())
+
+    @classmethod
+    @coroutine
+    @cursor
+    def mogrify(cls, cur, query, parameters=None):
+        return cur.mogrify(query, parameters=parameters)
+
+    @classmethod
+    @coroutine
+    @nt_cursor
     def raw_sql(cls, cur, query: str, values: tuple):
         """
         Run a raw sql query
