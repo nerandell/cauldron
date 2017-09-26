@@ -138,7 +138,7 @@ class PostgresStore:
     @classmethod
     def connect(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool=True,
                 enable_ssl: bool=False, minsize=1, maxsize=30, keepalives_idle=5, keepalives_interval=4, echo=False,
-                refresh_period=30, 
+                refresh_period=0.5,
                 **kwargs):
         """
         Sets connection parameters
