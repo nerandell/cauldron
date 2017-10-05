@@ -138,7 +138,7 @@ class PostgresStore:
     @classmethod
     def connect(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool=True,
                 enable_ssl: bool=False, minsize=1, maxsize=10, keepalives_idle=5, keepalives_interval=4, echo=False,
-                refresh_period=360,
+                refresh_period=-1,
                 **kwargs):
         """
         Sets connection parameters
@@ -189,10 +189,11 @@ class PostgresStore:
         """
         Periodically cleanses idle connections in pool
         """
-        yield from asyncio.sleep(cls.refresh_period * 60)
-        logging.getLogger().info("Clearing unused DB connections")
-        yield from cls._pool.clear()
-        asyncio.async(cls._periodic_cleansing())
+        if cls.refresh_period > 0:
+            yield from asyncio.sleep(cls.refresh_period * 60)
+            logging.getLogger().info("Clearing unused DB connections")
+            yield from cls._pool.clear()
+            asyncio.async(cls._periodic_cleansing())
 
 
     @classmethod
