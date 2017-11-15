@@ -171,7 +171,7 @@ class RedisCache:
             def redis_check(*args, **kwargs):
                 _args = ''
                 if args and len(args) > 0:
-                    _args = args[1:]
+                    _args = str(args[1:])
                 redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
                 digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
                 result = yield from RedisCache.hmget([digest_key], name_space)
@@ -191,7 +191,7 @@ class RedisCache:
             def apply_cache(*args, **kwargs):
                 _args = ''
                 if args and len(args) > 0:
-                    _args = args[1:]
+                    _args = str(args[1:])
                 redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
                 digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
                 result = yield from RedisCache.get_key(digest_key, name_space)
