@@ -170,23 +170,27 @@ class RedisCache:
             @wraps(func)
             def redis_check(*args, **kwargs):
                 _args = ''
-                if args and len(args) > 0:
-                    new_args = []
-                    for arg in args[1:]:
-                        if isinstance(arg, dict):
-                            new_args.append(json.dumps(arg, sort_keys=True))
-                        else:
-                            new_args.append(arg)
-                    _args = str(new_args)
-                redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
-                digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
-                result = yield from RedisCache.hmget([digest_key], name_space)
-                if result and len(result) > 0 and result[0]:
-                    return json.loads(result[0].decode(cls._utf8))
-                else:
+                try:
+                    if args and len(args) > 0:
+                        new_args = []
+                        for arg in args[1:]:
+                            if isinstance(arg, dict):
+                                new_args.append(json.dumps(arg, sort_keys=True))
+                            else:
+                                new_args.append(arg)
+                        _args = str(new_args)
+                    redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
+                    digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
+                    result = yield from RedisCache.hmget([digest_key], name_space)
+                    if result and len(result) > 0 and result[0]:
+                        return json.loads(result[0].decode(cls._utf8))
+                    else:
+                        result = yield from func(*args, **kwargs)
+                        yield from RedisCache.hmset(digest_key, json.dumps(result), name_space)
+
+                except Exception:
                     result = yield from func(*args, **kwargs)
-                    yield from RedisCache.hmset(digest_key, json.dumps(result), name_space)
-                    return result
+                return result
             return redis_check
         return wrapped
 
@@ -196,21 +200,24 @@ class RedisCache:
             @wraps(func)
             def apply_cache(*args, **kwargs):
                 _args = ''
-                if args and len(args) > 0:
-                    new_args = []
-                    for arg in args[1:]:
-                        if isinstance(arg, dict):
-                            new_args.append(json.dumps(arg, sort_keys=True))
-                        else:
-                            new_args.append(arg)
-                    _args = str(new_args)
-                redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
-                digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
-                result = yield from RedisCache.get_key(digest_key, name_space)
-                if result:
-                    return json.loads(result)
-                result = yield from func(*args, **kwargs)
-                yield from RedisCache.set_key(digest_key, json.dumps(result), name_space, expire_time)
+                try:
+                    if args and len(args) > 0:
+                        new_args = []
+                        for arg in args[1:]:
+                            if isinstance(arg, dict):
+                                new_args.append(json.dumps(arg, sort_keys=True))
+                            else:
+                                new_args.append(arg)
+                        _args = str(new_args)
+                    redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
+                    digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
+                    result = yield from RedisCache.get_key(digest_key, name_space)
+                    if result:
+                        return json.loads(result)
+                    result = yield from func(*args, **kwargs)
+                    yield from RedisCache.set_key(digest_key, json.dumps(result), name_space, expire_time)
+                except Exception:
+                    result = yield from func(*args, **kwargs)
                 return result
             return apply_cache
         return wrapped
