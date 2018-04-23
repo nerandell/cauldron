@@ -98,8 +98,9 @@ def transaction(func):
             try:
                 yield from c.execute('BEGIN')
                 result = (yield from func(cls, c, *args, **kwargs))
-            except Exception:
+            except Exception as e:
                 yield from c.execute('ROLLBACK')
+                raise e
             else:
                 yield from c.execute('COMMIT')
                 return result
