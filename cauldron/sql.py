@@ -116,13 +116,19 @@ class PostgresStore:
     _bulk_insert_string = "insert into {} ({}) values"
     _update_string = "update {} set ({}) = ({}) where ({}) returning *;"
     _select_all_string_with_condition = "select * from {} where ({}) limit {} offset {};"
+    _select_all_string_with_condition_group = "select * from {} where ({})  group by {} limit {} offset {};"
     _select_all_string = "select * from {} limit {} offset {};"
     _select_selective_column = "select {} from {} limit {} offset {};"
+    _select_selective_column_group = "select {} from {}  group by {} limit {} offset {};"
     _select_selective_column_with_condition = "select {} from {} where ({}) limit {} offset {};"
+    _select_selective_column_with_condition_group  = "select {} from {} where ({}) group by {} limit {} offset {};"
     _select_all_string_with_condition_and_order_by = "select * from {} where ({}) order by {} limit {} offset {};"
+    _select_all_string_with_condition_and_order_by_group = "select * from {} where ({}) group by {} order by {} limit {} offset {};"
     _select_all_string_with_order_by = "select * from {} order by {} limit {} offset {};"
     _select_selective_column_with_order_by = "select {} from {} order by {} limit {} offset {};"
+    _select_selective_column_with_order_by_group = "select {} from {}  group by {} order by {} limit {} offset {};"
     _select_selective_column_with_condition_and_order_by = "select {} from {} where ({}) order by {} limit {} offset {};"
+    _select_selective_column_with_condition_and_order_by_group = "select {} from {} where ({}) group by {} order by {} limit {} offset {};"
     _delete_query = "delete from {} where ({});"
     _count_query = "select count(*) from {};"
     _count_query_where = "select count(*) from {} where {};"
@@ -358,7 +364,7 @@ class PostgresStore:
     @coroutine
     @nt_cursor
     def select(cls, cur, table: str, order_by: str=None, columns: list=None, where_keys: list=None, limit=100,
-               offset=0):
+               offset=0, group_by:str = None):
         """
         Creates a select query for selective columns with where keys
         Supports multiple where claus with and or or both
@@ -381,21 +387,38 @@ class PostgresStore:
         """
         if columns:
             columns_string = cls._COMMA.join(columns)
-            if where_keys:
-                where_clause, values = cls._get_where_clause_with_values(where_keys)
-                if order_by:
-                    query = cls._select_selective_column_with_condition_and_order_by.format(columns_string, table, where_clause,
-                                                                               order_by, limit, offset)
+            if group_by:
+                if where_keys:
+                    where_clause, values = cls._get_where_clause_with_values(where_keys)
+                    if order_by:
+                        query = cls._select_selective_column_with_condition_and_order_by_group.format(columns_string, table, where_clause,
+                                                                                   group_by ,order_by, limit, offset)
+                    else:
+                        query = cls._select_selective_column_with_condition_group.format(columns_string, table, where_clause,
+                                                                                    group_by,limit, offset)
+                    q, t = query, values
                 else:
-                    query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
-                                                                                limit, offset)
-                q, t = query, values
+                    if order_by:
+                        query = cls._select_selective_column_with_order_by_group.format(columns_string, table, group_by, order_by, limit, offset)
+                    else:
+                        query = cls._select_selective_column_group.format(columns_string, table, group_by, limit, offset)
+                    q, t = query, ()
             else:
-                if order_by:
-                    query = cls._select_selective_column_with_order_by.format(columns_string, table, order_by, limit, offset)
+                if where_keys:
+                    where_clause, values = cls._get_where_clause_with_values(where_keys)
+                    if order_by:
+                        query = cls._select_selective_column_with_condition_and_order_by.format(columns_string, table, where_clause,
+                                                                                   order_by, limit, offset)
+                    else:
+                        query = cls._select_selective_column_with_condition.format(columns_string, table, where_clause,
+                                                                                    limit, offset)
+                    q, t = query, values
                 else:
-                    query = cls._select_selective_column.format(columns_string, table, limit, offset)
-                q, t = query, ()
+                    if order_by:
+                        query = cls._select_selective_column_with_order_by.format(columns_string, table, order_by, limit, offset)
+                    else:
+                        query = cls._select_selective_column.format(columns_string, table, limit, offset)
+                    q, t = query, ()
         else:
             if where_keys:
                 where_clause, values = cls._get_where_clause_with_values(where_keys)
@@ -410,7 +433,6 @@ class PostgresStore:
                 else:
                     query = cls._select_all_string.format(table, limit, offset)
                 q, t = query, ()
-
         yield from cur.execute(q, t)
         return (yield from cur.fetchall())
 
