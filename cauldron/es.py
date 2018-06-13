@@ -1,4 +1,7 @@
 # SUNNY SINGH 13/07/2018
+#this module is written in mind keeping in mind ES version 6.2
+#reason for your aiohttp requests is to  be able to upgrade to higher version of
+#elastic search without having to depend on version of aioes and aiohttp
 import logging, aiohttp, json
 from asyncio import coroutine, async
 logger = logging.getLogger(__name__)
