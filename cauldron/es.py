@@ -1,3 +1,4 @@
+# SUNNY SINGH 13/07/2018
 import logging, aiohttp, json
 from asyncio import coroutine, async
 logger = logging.getLogger(__name__)
@@ -19,10 +20,31 @@ def es_old_new_mapper(data):
                 res[key] = True
                 if val == "not_analyzed":
                     res['type'] = "keyword"
+            elif key == "index_analyzer":
+                res["analyzer"] = es_old_new_mapper(val)
             else:
                 res[key] = es_old_new_mapper(val)
         return res
     return data
+
+def es_old_new_query(data):
+    res = {}
+    if not data:
+        return data
+    if isinstance(data, list):
+        res = []
+        res = [ es_old_new_mapper(dt) for dt in data ]
+        return res
+    elif isinstance(data, dict):
+        for key,val in data.items():
+            if key == "type":
+                pass
+            else:
+                res[key] = es_old_new_mapper(val)
+        return res
+    return data
+
+
 
 class elasticsearch:
     host = None
@@ -54,12 +76,12 @@ class elasticsearch:
         @classmethod
         @coroutine
         def create(cls, index:str, body:dict):
+            body = json.loads(body)
             url = "http://{}:{}/{}".format(cls.host, cls.port, index)
             body = es_old_new_mapper(body)
-            print("----- checking on url {}".format(body))
-            response = yield from aiohttp.request('put', url=url, data = json.dumps(body), headers={'Content-Type': 'application/json'})
+            body = json.dumps(body)
+            response = yield from aiohttp.request('put', url=url, data = body, headers={'Content-Type': 'application/json'})
             result = yield from response.json()
-            print ("======response : {}".format(result))
             return result
 
         @classmethod
@@ -121,19 +143,20 @@ class elasticsearch:
 
     @classmethod
     @coroutine
-    def bulk(cls, index:str, body, doc_type, refresh = False):
+    def bulk(cls, index:str, body, doc_type, refresh = False ):
         url = "{}/{}".format(cls.url, "_bulk")
-        for doc in body:
-            if body.get('index', None) != None:
-                doc['index']['_index'] = index
-                if doc_type:
-                    doc['index']['_type'] = doc_type
-            else:
-                raise Exception("key 'index' not found in document {}".format(doc))
-        response = yield from cls.session.request('post', url=url, data=json.dumps(body), headers={'Content-Type': 'application/json'})
+        post_body = '\n'.join(map(json.dumps, body))
+        post_body += '\n'
+        response = yield from cls.session.request('post', url=url, data= post_body, headers={'Content-Type': 'application/json'})
+        if response.status != 200:
+            try:
+             res = yield from response.json()
+            except:
+             res = {}
+            res['errors'] = int(len(body)/2)
         results = yield  from response.json()
         if refresh:
-            async(cls.session.request('post', url="{}/{}/_refresh".format(cls.url, index) ), headers={'Content-Type': 'application/json'})
+            async(cls.session.request('post', url="{}/{}/_refresh".format(cls.url, index) ,headers={'Content-Type': 'application/json'}) )
         return results
 
     @classmethod
@@ -151,9 +174,10 @@ class elasticsearch:
     @coroutine
     def mget(cls,  index, doc_type, body):
         url = None
-        if doc_type:
-            doc_type = "_doc"
-        url = "{}/{}/{}/_mget".format(cls.url, index, doc_type)
+        if  doc_type:
+            url = "{}/{}/{}/_mget".format(cls.url, index, doc_type)
+        else:
+            url = "{}/{}/_mget".format(cls.url, index)
         response = yield from cls.session.request('post', url=url, data=json.dumps(body), headers={'Content-Type': 'application/json'})
         results = yield from response.json()
         return results
@@ -164,7 +188,7 @@ class elasticsearch:
         if not doc_type:
             doc_type = "_doc"
         url = "{}/{}/{}/{}".format(cls.url, index, doc_type, id)
-        response = yield from aiohttp.request('delete', url=url, headers={'Content-Type': 'application/json'})
+        response = yield from cls.session.request('delete', url=url, headers={'Content-Type': 'application/json'})
         result = yield from response.json()
         if response.status == 200:
             return result
@@ -175,16 +199,16 @@ class elasticsearch:
 
     @classmethod
     @coroutine
-    def search(cls, index, doc_type, id, ignore=None):
+    def search(cls, index, doc_type, body):
         if not doc_type:
-            doc_type = "_doc"
-        url = "{}/{}/{}/{}".format(cls.url, index, doc_type, id)
-        response = yield from aiohttp.request('delete', url=url, headers={'Content-Type': 'application/json'})
+          url = "{}/{}/_search".format(cls.url, index)
+        else:
+          url =  "{}/{}/{}/_search".format(cls.url, index, doc_type)
+        body = es_old_new_query(body)
+        response = yield from cls.session.request('post', url=url, data= json.dumps(body) , headers={'Content-Type': 'application/json'})
         result = yield from response.json()
         if response.status == 200:
             return result
-        elif ignore and response.status in ignore:
-            return {"acknowledged": True}
         else:
             return result
 
