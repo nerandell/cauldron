@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='cauldron',
-      version='1.0.37',
+      version='1.0.40',
       author='Ankit Chandawala',
       author_email='ankitchandawala@gmail.com',
       url='https://github.com/nerandell/cauldron',
