@@ -84,6 +84,7 @@ class elasticsearch:
             body = es_old_new_mapper(body)
             body = json.dumps(body)
             response = yield from aiohttp.request('put', url=url, data = body, headers={'Content-Type': 'application/json'})
+            yield from response.text()
             result = yield from response.json()
             return result
 
@@ -140,8 +141,14 @@ class elasticsearch:
         response = yield from cls.session.request('post', url=url, data=body, headers={'Content-Type': 'application/json'})
         result = yield from response.json()
         if refresh:
-            async(cls.session.request('post', url="{}/{}/_refresh".format(cls.url, index) ), headers={'Content-Type': 'application/json'})
+            async(cls.refresh(index))
         return result
+
+    @classmethod
+    @coroutine
+    def refresh(cls, index):
+        response = yield from cls.session.request('post', url="{}/{}/_refresh".format(cls.url, index) ,headers={'Content-Type': 'application/json'})
+        yield from response.text()
 
 
     @classmethod
@@ -155,11 +162,12 @@ class elasticsearch:
             try:
              res = yield from response.json()
             except:
+             yield from response.text()
              res = {}
             res['errors'] = int(len(body)/2)
         results = yield  from response.json()
         if refresh:
-            async(cls.session.request('post', url="{}/{}/_refresh".format(cls.url, index) ,headers={'Content-Type': 'application/json'}) )
+            async(cls.refresh(index) )
         return results
 
     @classmethod
