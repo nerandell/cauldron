@@ -36,14 +36,14 @@ def es_old_new_query(data):
         return data
     if isinstance(data, list):
         res = []
-        res = [ es_old_new_mapper(dt) for dt in data ]
+        res = [ es_old_new_query(dt) for dt in data ]
         return res
     elif isinstance(data, dict):
         for key,val in data.items():
             if key == "type":
                 pass
             else:
-                res[key] = es_old_new_mapper(val)
+                res[key] = es_old_new_query(val)
         return res
     return data
 
@@ -120,14 +120,12 @@ class elasticsearch:
     def exists(cls, index :str, doc_type:str, id):
         url = None
         if doc_type:
-            doc_type = "_doc"
-        url = "{}/{}/{}/_count".format(cls.url, index, doc_type)
-        query = { "query": {"match": {
-                              "_id": str(id)
-                            }}}
-        response = yield from cls.session.request('post', url= url, data= json.dumps(query), headers={'Content-Type': 'application/json'})
+            url = "{}/{}/{}/{}".format(cls.url, index, doc_type, id)
+        else:
+            url = "{}/{}/{}".format(cls.url, index, id)
+        response = yield from cls.session.request('get', url= url, headers={'Content-Type': 'application/json'})
         result = yield from response.json()
-        return result['count'] > 0
+        return result['found'] 
 
 
     @classmethod
@@ -135,9 +133,15 @@ class elasticsearch:
     def index(cls, index:str, doc_type:str, body, id , refresh = False):
         url = None
         if id != None:
-            url = "{}/_doc/{}?op_type=create".format(cls.url, str(index))
+            if doc_type:
+                url = "{}/{}/{}/{}?op_type=create".format(cls.url, str(index), doc_type, id)
+            else:
+                url = "{}/{}/{}?op_type=create".format(cls.url, str(index), id)
         else:
-            url = "{}/_doc?op_type=create".format(cls.url)
+            if doc_type:
+                url = "{}/{}/{}?op_type=create".format(cls.url, str(index), doc_type)
+            else:
+                url = "{}/{}?op_type=create".format(cls.url, str(index))
         response = yield from cls.session.request('post', url=url, data=body, headers={'Content-Type': 'application/json'})
         result = yield from response.json()
         if refresh:
@@ -157,14 +161,15 @@ class elasticsearch:
         url = "{}/{}".format(cls.url, "_bulk")
         post_body = '\n'.join(map(json.dumps, body))
         post_body += '\n'
-        response = yield from cls.session.request('post', url=url, data= post_body, headers={'Content-Type': 'application/json'})
+        response = yield from cls.session.request('post', url=url, data= post_body, headers={'Content-Type': 'application/x-ndjson'})
         if response.status != 200:
             try:
              res = yield from response.json()
             except:
              yield from response.text()
              res = {}
-            res['errors'] = int(len(body)/2)
+             res['errors'] = int(len(body)/2)
+             return res
         results = yield  from response.json()
         if refresh:
             async(cls.refresh(index) )
@@ -175,8 +180,9 @@ class elasticsearch:
     def get(cls, index, doc_type, id):
         url = None
         if doc_type:
-            doc_type = "_doc"
-        url = "{}/{}/{}/{}".format(cls.url, index, doc_type, id)
+            url = "{}/{}/{}/{}".format(cls.url, index, doc_type, id)
+        else:
+            url = "{}/{}/{}".format(cls.url, index, id)
         response = yield from cls.session.request('get', url=url, headers={'Content-Type': 'application/json'})
         result = yield from response.json()
         return result
@@ -197,10 +203,12 @@ class elasticsearch:
     @coroutine
     def delete(cls, index, doc_type, id, ignore = None):
         if not doc_type:
-            doc_type = "_doc"
-        url = "{}/{}/{}/{}".format(cls.url, index, doc_type, id)
+            url = "{}/{}/{}/{}".format(cls.url, index, doc_type, id)
+        else:
+            url = "{}/{}/{}".format(cls.url, index, id)
         response = yield from cls.session.request('delete', url=url, headers={'Content-Type': 'application/json'})
         result = yield from response.json()
+        async(cls.refresh())
         if response.status == 200:
             return result
         elif ignore and response.status in ignore:
@@ -218,10 +226,7 @@ class elasticsearch:
         body = es_old_new_query(body)
         response = yield from cls.session.request('post', url=url, data= json.dumps(body) , headers={'Content-Type': 'application/json'})
         result = yield from response.json()
-        if response.status == 200:
-            return result
-        else:
-            return result
+        return result
 
 
 
