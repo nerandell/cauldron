@@ -67,7 +67,7 @@ class elasticsearch:
         @coroutine
         def exists(cls, index:str):
             url = "http://{}:{}/{}".format(cls.host, cls.port, index)
-            response = yield from aiohttp.request('get', url= url, headers={'Content-Type': 'application/json'})
+            response = yield from aiohttp.request('get', url=url, headers={'Content-Type': 'application/json'})
             res = yield from response.text()
             if response.status == 200 :
                 return True
@@ -125,7 +125,7 @@ class elasticsearch:
             url = "{}/{}/{}".format(cls.url, index, id)
         response = yield from cls.session.request('get', url= url, headers={'Content-Type': 'application/json'})
         result = yield from response.json()
-        return result['found'] 
+        return result['found']
 
 
     @classmethod
@@ -161,7 +161,7 @@ class elasticsearch:
         url = "{}/{}".format(cls.url, "_bulk")
         post_body = '\n'.join(map(json.dumps, body))
         post_body += '\n'
-        response = yield from cls.session.request('post', url=url, data= post_body, headers={'Content-Type': 'application/x-ndjson'})
+        response = yield from cls.session.request('post', url=url, data=post_body, headers={'Content-Type': 'application/x-ndjson'})
         if response.status != 200:
             try:
              res = yield from response.json()
@@ -202,7 +202,7 @@ class elasticsearch:
     @classmethod
     @coroutine
     def delete(cls, index, doc_type, id, ignore = None):
-        if not doc_type:
+        if doc_type:
             url = "{}/{}/{}/{}".format(cls.url, index, doc_type, id)
         else:
             url = "{}/{}/{}".format(cls.url, index, id)
@@ -224,7 +224,7 @@ class elasticsearch:
         else:
           url =  "{}/{}/{}/_search".format(cls.url, index, doc_type)
         body = es_old_new_query(body)
-        response = yield from cls.session.request('post', url=url, data= json.dumps(body) , headers={'Content-Type': 'application/json'})
+        response = yield from cls.session.request('post', url=url, data=json.dumps(body), headers={'Content-Type': 'application/json'})
         result = yield from response.json()
         return result
 
