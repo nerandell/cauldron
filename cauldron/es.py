@@ -31,20 +31,6 @@ def es_old_new_mapper(data):
     return data
 
 def es_old_new_query(data):
-    res = {}
-    if not data:
-        return data
-    if isinstance(data, list):
-        res = []
-        res = [ es_old_new_query(dt) for dt in data ]
-        return res
-    elif isinstance(data, dict):
-        for key,val in data.items():
-            if key == "type":
-                pass
-            else:
-                res[key] = es_old_new_query(val)
-        return res
     return data
 
 
