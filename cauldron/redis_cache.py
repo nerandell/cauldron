@@ -238,3 +238,23 @@ class RedisCache:
             with (yield from cls.get_pool()) as redis:
                 return (yield from redis.keys(pattern_str))
         return []
+
+    @classmethod
+    def redis_cache_using_keys(cls, name_space='', expire_time=0, keys= []):
+        def wrapped(func):
+            @wraps(func)
+            def apply_cache(*args, **kwargs):
+                result = None
+                digest_key = None
+                if keys and len(keys) > 0:
+                    redis_key = "{}:{}".format(func.__name__, ','.join(keys))
+                    digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
+                    result = yield from RedisCache.get_key(digest_key, name_space)
+                if result:
+                    return json.loads(result)
+                result = yield from func(*args, **kwargs)
+                if digest_key:
+                    yield from RedisCache.set_key(digest_key, json.dumps(result), name_space, expire_time)
+                return result
+            return apply_cache
+        return wrapped
