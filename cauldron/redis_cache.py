@@ -257,7 +257,12 @@ class RedisCache:
                             else:
                                 new_args.append(arg)
                     _args = str(new_args)
-                redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
+                _kwargs = {}
+                for key in kwargs:
+                    if type(kwargs[key]) in cls._allowed_types_for_caching:
+                        _kwargs[key]= kwargs[key]
+
+                redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': _kwargs}, sort_keys=True)
                 logger.info("AAA: args in new decorator: {}".format(_args))
                 digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
                 result = yield from RedisCache.get_key(digest_key, name_space)
