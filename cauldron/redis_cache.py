@@ -4,7 +4,8 @@ from asyncio import coroutine
 from functools import wraps
 import json
 import hashlib
-
+import logging
+logger = logging.getLogger()
 
 class RedisCache:
     _pool = None
@@ -14,6 +15,7 @@ class RedisCache:
     _maxsize = None
     _lock = asyncio.Semaphore(1)
     _utf8 = 'utf-8'
+    _allowed_types_for_caching = [str, int, list, tuple, float, dict]
 
     @classmethod
     @coroutine
@@ -205,6 +207,7 @@ class RedisCache:
                             new_args.append(arg)
                     _args = str(new_args)
                 redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
+                logger.info("AAA: args in old decorator: {}".format(_args))
                 digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
                 result = yield from RedisCache.get_key(digest_key, name_space)
                 if result:
@@ -240,21 +243,30 @@ class RedisCache:
         return []
 
     @classmethod
-    def redis_cache_using_keys(cls, name_space='', expire_time=0, keys= []):
+    def redis_cache_decorator_v2(cls, name_space='', expire_time=0):
         def wrapped(func):
             @wraps(func)
             def apply_cache(*args, **kwargs):
-                result = None
-                digest_key = None
-                if keys and len(keys) > 0:
-                    redis_key = "{}:{}".format(func.__name__, ','.join(keys))
-                    digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
-                    result = yield from RedisCache.get_key(digest_key, name_space)
+                _args = ''
+                if args and len(args) > 0:
+                    new_args = []
+                    for arg in args[1:]:
+                        if type(arg) in cls._allowed_types_for_caching:
+                            if isinstance(arg, dict):
+                                new_args.append(json.dumps(arg, sort_keys=True))
+                            else:
+                                new_args.append(arg)
+                    _args = str(new_args)
+                redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
+                logger.info("AAA: args in new decorator: {}".format(_args))
+                digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
+                result = yield from RedisCache.get_key(digest_key, name_space)
                 if result:
                     return json.loads(result)
                 result = yield from func(*args, **kwargs)
-                if digest_key:
-                    yield from RedisCache.set_key(digest_key, json.dumps(result), name_space, expire_time)
+                yield from RedisCache.set_key(digest_key, json.dumps(result), name_space, expire_time)
                 return result
+
             return apply_cache
+
         return wrapped
