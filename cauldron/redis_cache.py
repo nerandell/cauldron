@@ -4,8 +4,7 @@ from asyncio import coroutine
 from functools import wraps
 import json
 import hashlib
-import logging
-logger = logging.getLogger()
+
 
 class RedisCache:
     _pool = None
@@ -207,7 +206,6 @@ class RedisCache:
                             new_args.append(arg)
                     _args = str(new_args)
                 redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': kwargs}, sort_keys=True)
-                #logger.info("AAA: args in old decorator: {}".format(redis_key))
                 digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
                 result = yield from RedisCache.get_key(digest_key, name_space)
                 if result:
@@ -263,7 +261,6 @@ class RedisCache:
                         _kwargs[key]= kwargs[key]
 
                 redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': _kwargs}, sort_keys=True)
-                #logger.info("AAA: args in new decorator: {}".format(redis_key))
                 digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
                 result = yield from RedisCache.get_key(digest_key, name_space)
                 if result:
