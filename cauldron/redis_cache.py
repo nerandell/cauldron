@@ -14,7 +14,7 @@ class RedisCache:
     _maxsize = None
     _lock = asyncio.Semaphore(1)
     _utf8 = 'utf-8'
-    _allowed_types_for_caching = [str, int, list, tuple, float, dict]
+    _allowed_types_for_caching = [str, int, list, tuple, float, dict, bool]
 
     @classmethod
     @coroutine
