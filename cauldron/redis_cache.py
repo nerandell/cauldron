@@ -4,7 +4,7 @@ from asyncio import coroutine
 from functools import wraps
 import json
 import hashlib
-
+allowed_types_for_caching = [str, int, list, tuple, float, dict, bool]
 
 class RedisCache:
     _pool = None
@@ -238,3 +238,36 @@ class RedisCache:
             with (yield from cls.get_pool()) as redis:
                 return (yield from redis.keys(pattern_str))
         return []
+
+    @classmethod
+    def redis_cache_decorator_v2(cls, name_space='', expire_time=0):
+        def wrapped(func):
+            @wraps(func)
+            def apply_cache(*args, **kwargs):
+                _args = ''
+                if args and len(args) > 0:
+                    new_args = []
+                    for arg in args[1:]:
+                        if type(arg) in allowed_types_for_caching:
+                            if isinstance(arg, dict):
+                                new_args.append(json.dumps(arg, sort_keys=True))
+                            else:
+                                new_args.append(arg)
+                    _args = str(new_args)
+                _kwargs = {}
+                for key in kwargs:
+                    if type(kwargs[key]) in allowed_types_for_caching:
+                        _kwargs[key]= kwargs[key]
+
+                redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': _kwargs}, sort_keys=True)
+                digest_key = hashlib.md5(redis_key.encode(cls._utf8)).hexdigest()
+                result = yield from RedisCache.get_key(digest_key, name_space)
+                if result:
+                    return json.loads(result)
+                result = yield from func(*args, **kwargs)
+                yield from RedisCache.set_key(digest_key, json.dumps(result), name_space, expire_time)
+                return result
+
+            return apply_cache
+
+        return wrapped
