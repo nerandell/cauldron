@@ -4,7 +4,7 @@ from asyncio import coroutine
 from functools import wraps
 import json
 import hashlib
-
+allowed_types_for_caching = [str, int, list, tuple, float, dict, bool]
 
 class RedisCache:
     _pool = None
@@ -14,7 +14,6 @@ class RedisCache:
     _maxsize = None
     _lock = asyncio.Semaphore(1)
     _utf8 = 'utf-8'
-    _allowed_types_for_caching = [str, int, list, tuple, float, dict, bool]
 
     @classmethod
     @coroutine
@@ -249,7 +248,7 @@ class RedisCache:
                 if args and len(args) > 0:
                     new_args = []
                     for arg in args[1:]:
-                        if type(arg) in cls._allowed_types_for_caching:
+                        if type(arg) in allowed_types_for_caching:
                             if isinstance(arg, dict):
                                 new_args.append(json.dumps(arg, sort_keys=True))
                             else:
@@ -257,7 +256,7 @@ class RedisCache:
                     _args = str(new_args)
                 _kwargs = {}
                 for key in kwargs:
-                    if type(kwargs[key]) in cls._allowed_types_for_caching:
+                    if type(kwargs[key]) in allowed_types_for_caching:
                         _kwargs[key]= kwargs[key]
 
                 redis_key = json.dumps({'func': func.__name__, 'args': _args, 'kwargs': _kwargs}, sort_keys=True)
