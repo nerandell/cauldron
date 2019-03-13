@@ -289,6 +289,7 @@ class RedisCacheV2:
         self._minsize = minsize
         self._maxsize = maxsize
         self._lock = asyncio.Semaphore(1)
+        self._pool = None
 
     @coroutine
     def get_pool(self):
