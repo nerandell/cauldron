@@ -76,6 +76,14 @@ class RedisCache:
 
     @classmethod
     @coroutine
+    def increment_by_value(cls, key, value:int, namespace=None):
+        with (yield from cls.get_pool()) as redis:
+            if namespace is not None:
+                key = cls._get_key(namespace, key)
+            yield from redis.incrby(key, value)
+
+    @classmethod
+    @coroutine
     def set_key_if_not_exists(cls, key, value, namespace=None, expire=0):
         """
         Set a redis key and return True if the key does not exists else return False
