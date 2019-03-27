@@ -236,6 +236,19 @@ class RedisCache:
 
     @classmethod
     @coroutine
+    def scan(cls, pattern_str: str):
+        """
+        Function to get all keys using scan in redis matching to pattern_str
+        :param pattern_str: keys pattern
+        :return: list of all redis keys available in top 10000 records
+        """
+        if pattern_str:
+            with (yield from cls.get_pool()) as redis:
+                return (yield from redis.scan(cursor=0, match=pattern_str, count=10000))
+        return []
+
+    @classmethod
+    @coroutine
     def keys(cls, pattern_str:str):
         """
         Function to get all keys in redis matching to pattern_str
@@ -471,6 +484,19 @@ class RedisCacheV2:
                     keys = [self._get_key(namespace, key) for key in keys]
                 return (yield from redis.eval(script=script, keys=keys, args=args))
             return None
+
+    @coroutine
+    def scan(cls, pattern_str: str):
+        """
+        Function to get all keys using scan in redis matching to pattern_str
+        :param pattern_str: keys pattern
+        :return: list of all redis keys available in top 10000 records
+        """
+        if pattern_str:
+            with (yield from cls.get_pool()) as redis:
+                return (yield from redis.scan(cursor=0, match=pattern_str, count=10000))
+        return []
+
 
     @coroutine
     def keys(self, pattern_str: str):
