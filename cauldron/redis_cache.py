@@ -485,16 +485,17 @@ class RedisCacheV2:
                 return (yield from redis.eval(script=script, keys=keys, args=args))
             return None
 
+    @classmethod
     @coroutine
-    def scan(cls, pattern_str: str):
+    def scan(cls, pattern_str: str, scan_top_records=10000):
         """
         Function to get all keys using scan in redis matching to pattern_str
         :param pattern_str: keys pattern
-        :return: list of all redis keys available in top 10000 records
+        :return: list of all redis keys available in top scan_top_records (default 10000) records
         """
         if pattern_str:
             with (yield from cls.get_pool()) as redis:
-                return (yield from redis.scan(cursor=0, match=pattern_str, count=10000))
+                return (yield from redis.scan(cursor=0, match=pattern_str, count=scan_top_records))
         return []
 
 
