@@ -293,6 +293,28 @@ class RedisCache:
 
         return wrapped
 
+    @classmethod
+    @coroutine
+    def lpush(cls, namespace, key, value, *values):
+        key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.lpush(key, value, *values))
+
+    @classmethod
+    @coroutine
+    def llen(cls, namespace, key):
+        key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.llen(key))
+
+    @classmethod
+    @coroutine
+    def lrange(cls, namespace, key, start, stop):
+        key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.lrange(key, start, stop))
+
+
 class RedisCacheV2:
     _utf8 = 'utf-8'
 
@@ -542,3 +564,24 @@ class RedisCacheV2:
             return apply_cache
 
         return wrapped
+
+    @classmethod
+    @coroutine
+    def lpush(cls, namespace, key, value, *values):
+        key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.lpush(key, value, *values))
+
+    @classmethod
+    @coroutine
+    def llen(cls, namespace, key):
+        key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.llen(key))
+
+    @classmethod
+    @coroutine
+    def lrange(cls, namespace, key, start, stop):
+        key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.lrange(key, start, stop))
