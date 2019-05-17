@@ -112,6 +112,7 @@ def transaction(func):
 
 class PostgresStore:
     _pool = None
+    _replica_connection_params = {}
     _connection_params = {}
     _use_pool = None
     _insert_string = "insert into {} ({}) values ({}) returning *;"
@@ -147,7 +148,7 @@ class PostgresStore:
     @classmethod
     def connect(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool=True,
                 enable_ssl: bool=False, minsize=1, maxsize=10, keepalives_idle=5, keepalives_interval=4, echo=False,
-                refresh_period=-1, replicahost=None,
+                refresh_period=-1, replicahost='',
                 **kwargs):
         """
         Sets connection parameters
@@ -172,10 +173,7 @@ class PostgresStore:
         cls._replica_connection_params['database'] = database
         cls._replica_connection_params['user'] = user
         cls._replica_connection_params['password'] = password
-        if replicahost is None:
-            cls._replica_connection_params['host'] = host
-        else:
-            cls._replica_connection_params['host'] = replicahost
+        cls._replica_connection_params['host'] = replicahost if replicahost else host
         cls._replica_connection_params['port'] = port
         cls._replica_connection_params['sslmode'] = 'prefer' if enable_ssl else 'disable'
         cls._replica_connection_params['minsize'] = minsize
