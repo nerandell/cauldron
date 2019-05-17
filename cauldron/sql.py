@@ -5,6 +5,8 @@ from enum import Enum
 import aiopg
 import asyncio
 import logging
+import copy
+
 
 from aiopg import create_pool, Pool, Cursor
 
@@ -189,7 +191,7 @@ class PostgresStore:
                     if is_replica:
                         cls._pool = yield from create_pool(**cls._connection_params)
                     else:
-                        _replica_connection_params = cls._connection_params
+                        _replica_connection_params = copy.deepcopy(cls._connection_params)
                         if cls._connection_params.get('replicahost'):
                             _replica_connection_params['host'] = cls._connection_params.get('replicahost')
                         cls._pool = yield from create_pool(**_replica_connection_params)
@@ -216,12 +218,16 @@ class PostgresStore:
         Yields:
             new client-side cursor from existing db connection pool
         """
-        if is_replica
-        _cur = None
         if cls._use_pool:
-            _connection_source = yield from cls.get_pool()
+            _connection_source = yield from cls.get_pool(is_replica)
         else:
-            _connection_source = yield from aiopg.connect(echo=False, **cls._connection_params)
+            if is_replica:
+                _replica_connection_params = copy.deepcopy(cls._connection_params)
+                if cls._connection_params.get('replicahost'):
+                    _replica_connection_params['host'] = cls._connection_params.get('replicahost')
+                _connection_source = yield from aiopg.connect(echo=False, _replica_connection_params)
+            else:
+                _connection_source = yield from aiopg.connect(echo=False, **cls._connection_params)
 
         if cursor_type == _CursorType.PLAIN:
             _cur = yield from _connection_source.cursor()
