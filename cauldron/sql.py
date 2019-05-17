@@ -5,8 +5,6 @@ from enum import Enum
 import aiopg
 import asyncio
 import logging
-import copy
-
 
 from aiopg import create_pool, Pool, Cursor
 
