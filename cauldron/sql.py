@@ -73,7 +73,7 @@ def nt_cursor(func):
 
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
+        with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE, kwargs.get('is_replica'))) as c:
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
@@ -176,7 +176,7 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    def get_pool(cls) -> Pool:
+    def get_pool(cls, is_replica=False) -> Pool:
         """
         Yields:
             existing db connection pool
@@ -186,7 +186,13 @@ class PostgresStore:
         if not cls._pool:
             with (yield from cls._pool_pending):
                 if not cls._pool:
-                    cls._pool = yield from create_pool(**cls._connection_params)
+                    if is_replica:
+                        cls._pool = yield from create_pool(**cls._connection_params)
+                    else:
+                        _replica_connection_params = cls._connection_params
+                        if cls._connection_params.get('replicahost'):
+                            _replica_connection_params['host'] = cls._connection_params.get('replicahost')
+                        cls._pool = yield from create_pool(**_replica_connection_params)
                     asyncio.async(cls._periodic_cleansing())
         return cls._pool
 
@@ -205,11 +211,12 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    def get_cursor(cls, cursor_type=_CursorType.PLAIN) -> Cursor:
+    def get_cursor(cls, cursor_type=_CursorType.PLAIN, is_replica=False) -> Cursor:
         """
         Yields:
             new client-side cursor from existing db connection pool
         """
+        if is_replica
         _cur = None
         if cls._use_pool:
             _connection_source = yield from cls.get_pool()
@@ -364,7 +371,7 @@ class PostgresStore:
     @coroutine
     @nt_cursor
     def select(cls, cur, table: str, order_by: str=None, columns: list=None, where_keys: list=None, limit=100,
-               offset=0, group_by:str = None):
+               offset=0, group_by:str = None, is_replica=False):
         """
         Creates a select query for selective columns with where keys
         Supports multiple where claus with and or or both
@@ -385,6 +392,7 @@ class PostgresStore:
             A list of 'Record' object with table columns as properties
 
         """
+
         if columns:
             columns_string = cls._COMMA.join(columns)
             if group_by:
