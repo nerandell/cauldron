@@ -147,7 +147,7 @@ class PostgresStore:
     @classmethod
     def connect(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool=True,
                 enable_ssl: bool=False, minsize=1, maxsize=10, keepalives_idle=5, keepalives_interval=4, echo=False,
-                refresh_period=-1,
+                refresh_period=-1, replicahost=None,
                 **kwargs):
         """
         Sets connection parameters
@@ -169,6 +169,22 @@ class PostgresStore:
         cls._use_pool = use_pool
         cls.refresh_period = refresh_period
 
+        cls._replica_connection_params['database'] = database
+        cls._replica_connection_params['user'] = user
+        cls._replica_connection_params['password'] = password
+        if replicahost is None:
+            cls._replica_connection_params['host'] = host
+        else:
+            cls._replica_connection_params['host'] = replicahost
+        cls._replica_connection_params['port'] = port
+        cls._replica_connection_params['sslmode'] = 'prefer' if enable_ssl else 'disable'
+        cls._replica_connection_params['minsize'] = minsize
+        cls._replica_connection_params['maxsize'] = maxsize
+        cls._replica_connection_params['keepalives_idle'] = keepalives_idle
+        cls._replica_connection_params['keepalives_interval'] = keepalives_interval
+        cls._replica_connection_params['echo'] = echo
+        cls._replica_connection_params.update(kwargs)
+
     @classmethod
     def use_pool(cls, pool: Pool):
         """
@@ -189,12 +205,9 @@ class PostgresStore:
             with (yield from cls._pool_pending):
                 if not cls._pool:
                     if is_replica:
-                        cls._pool = yield from create_pool(**cls._connection_params)
+                        cls._pool = yield from create_pool(**cls._replica_connection_params)
                     else:
-                        _replica_connection_params = copy.deepcopy(cls._connection_params)
-                        if cls._connection_params.get('replicahost'):
-                            _replica_connection_params['host'] = cls._connection_params.get('replicahost')
-                        cls._pool = yield from create_pool(**_replica_connection_params)
+                        cls._pool = yield from create_pool(**cls._connection_params)
                     asyncio.async(cls._periodic_cleansing())
         return cls._pool
 
@@ -222,10 +235,7 @@ class PostgresStore:
             _connection_source = yield from cls.get_pool(is_replica)
         else:
             if is_replica:
-                _replica_connection_params = copy.deepcopy(cls._connection_params)
-                if cls._connection_params.get('replicahost'):
-                    _replica_connection_params['host'] = cls._connection_params.get('replicahost')
-                _connection_source = yield from aiopg.connect(echo=False, _replica_connection_params)
+                _connection_source = yield from aiopg.connect(echo=False, **cls_replica_connection_params)
             else:
                 _connection_source = yield from aiopg.connect(echo=False, **cls._connection_params)
 
