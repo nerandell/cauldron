@@ -205,8 +205,9 @@ class PostgresStore:
                 if not _pool:
                     _conn_pool = yield from create_pool(**_conn_params)
                     asyncio.async(cls._periodic_cleansing(_conn_pool))
-        return _conn_pool
-
+                    return _conn_pool
+        return _pool
+    
     @classmethod
     @coroutine
     def get_pool(cls, _use_replica=False):
