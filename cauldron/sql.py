@@ -197,15 +197,14 @@ class PostgresStore:
         Yields:
             existing db connection pool
         """
-        _conn_pool = None
         if len(_conn_params) < 5:
             raise ConnectionError('Please call SQLStore.connect before calling this method')
         if not _pool:
             with (yield from _conn_pool_pending):
                 if not _pool:
-                    _conn_pool = yield from create_pool(**_conn_params)
-                    asyncio.async(cls._periodic_cleansing(_conn_pool))
-                    return _conn_pool
+                    _pool = yield from create_pool(**_conn_params)
+                    asyncio.async(cls._periodic_cleansing(_pool))
+                    
         return _pool
     
     @classmethod
