@@ -51,7 +51,7 @@ def cursor(func):
 
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor()) as c:
+        with (yield from cls.get_cursor(use_replica=kwargs.get(USE_REPLICA))) as c:
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
