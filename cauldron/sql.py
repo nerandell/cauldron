@@ -169,19 +169,20 @@ class PostgresStore:
         cls._connection_params.update(kwargs)
         cls._use_pool = use_pool
         cls.refresh_period = refresh_period
-
-        cls._replica_connection_params['database'] = database
-        cls._replica_connection_params['user'] = user
-        cls._replica_connection_params['password'] = password
-        cls._replica_connection_params['host'] = replicahost if replicahost else host
-        cls._replica_connection_params['port'] = port
-        cls._replica_connection_params['sslmode'] = 'prefer' if enable_ssl else 'disable'
-        cls._replica_connection_params['minsize'] = minsize
-        cls._replica_connection_params['maxsize'] = maxsize
-        cls._replica_connection_params['keepalives_idle'] = keepalives_idle
-        cls._replica_connection_params['keepalives_interval'] = keepalives_interval
-        cls._replica_connection_params['echo'] = echo
-        cls._replica_connection_params.update(kwargs)
+        
+        if replicahost:
+            cls._replica_connection_params['database'] = database
+            cls._replica_connection_params['user'] = user
+            cls._replica_connection_params['password'] = password
+            cls._replica_connection_params['host'] = replicahost
+            cls._replica_connection_params['port'] = port
+            cls._replica_connection_params['sslmode'] = 'prefer' if enable_ssl else 'disable'
+            cls._replica_connection_params['minsize'] = minsize
+            cls._replica_connection_params['maxsize'] = maxsize
+            cls._replica_connection_params['keepalives_idle'] = keepalives_idle
+            cls._replica_connection_params['keepalives_interval'] = keepalives_interval
+            cls._replica_connection_params['echo'] = echo
+            cls._replica_connection_params.update(kwargs)
 
     @classmethod
     def use_pool(cls, pool: Pool):
