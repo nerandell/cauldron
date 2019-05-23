@@ -192,7 +192,7 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    def _get_pool(cls, _conn_params, _conn_pool_pending, _pool):
+    def _get_pool(cls, _conn_params, _conn_pool_pending, _pool, _is_replica):
         """
         Yields:
             existing db connection pool
@@ -203,7 +203,7 @@ class PostgresStore:
             with (yield from _conn_pool_pending):
                 if not _pool:
                     _pool = yield from create_pool(**_conn_params)
-                    asyncio.async(cls._periodic_cleansing(_pool))
+                    asyncio.async(cls._periodic_cleansing(_is_replica))
                     
         return _pool
     
@@ -217,23 +217,26 @@ class PostgresStore:
         """
 
         if _use_replica:
-            cls._replica_pool = yield from  cls._get_pool(cls._replica_connection_params, cls._replica_pool_pending, cls._replica_pool)
+            cls._replica_pool = yield from  cls._get_pool(cls._replica_connection_params, cls._replica_pool_pending, cls._replica_pool, _use_replica)
             return cls._replica_pool
         else:
-            cls._pool = yield from cls._get_pool(cls._connection_params, cls._pool_pending, cls._pool)
+            cls._pool = yield from cls._get_pool(cls._connection_params, cls._pool_pending, cls._pool, _use_replica)
             return cls._pool
 
     @classmethod
     @coroutine
-    def _periodic_cleansing(cls, _conn_pool):
+    def _periodic_cleansing(cls, _is_replica):
         """
         Periodically cleanses idle connections in pool
         """
         if cls.refresh_period > 0:
             yield from asyncio.sleep(cls.refresh_period * 60)
             logging.getLogger().info("Clearing unused DB connections")
-            yield from _conn_pool.clear()
-            asyncio.async(cls._periodic_cleansing())
+            if _is_replica:
+                yield from cls._replica_pool.clear()
+            else:
+                yield from cls._pool.clear()
+            asyncio.async(cls._periodic_cleansing(_is_replica))
 
 
     @classmethod
