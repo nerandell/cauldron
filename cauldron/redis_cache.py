@@ -121,11 +121,12 @@ class RedisCache:
 
     @classmethod
     @coroutine
-    def delete(cls, key, namespace=None):
+    def delete(cls, key, namespace=None, *keys):
+        # To delete multiple keys, provide rest of the keys in *keys
         with (yield from cls.get_pool()) as redis:
             if namespace is not None:
                 key = cls._get_key(namespace, key)
-            yield from redis.delete(key)
+            yield from redis.delete(key, *keys)
 
     @classmethod
     def hdel(cls, key, namespace):
@@ -402,11 +403,12 @@ class RedisCacheV2:
             yield from redis.hmset(namespace, field, value)
 
     @coroutine
-    def delete(self, key, namespace=None):
+    def delete(self, key, namespace=None, *keys):
+        # To delete multiple keys, provide rest of the keys in *keys
         with (yield from self.get_pool()) as redis:
             if namespace is not None:
                 key = self._get_key(namespace, key)
-            yield from redis.delete(key)
+            yield from redis.delete(key, *keys)
 
     def hdel(self, key, namespace):
         with (yield from self.get_pool()) as redis:
