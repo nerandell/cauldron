@@ -1,5 +1,6 @@
 """
-
+Added SQL v2 to support connection to multiple DBs from one service.
+Instantiate PostgresStoreV2 class with DB params in-order to connect to a DB
 """
 
 from asyncio import coroutine
