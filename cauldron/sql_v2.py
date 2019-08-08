@@ -195,7 +195,8 @@ class PostgresStoreV2:
         if self.refresh_period > 0:
             yield from asyncio.sleep(self.refresh_period * 60)
             logging.getLogger().info("Clearing unused DB connections")
-            yield from self._pool.clear()
+            if self._pool():
+                yield from self._pool.clear()
             asyncio.async(self._periodic_cleansing())
 
     @coroutine
@@ -469,11 +470,3 @@ def cursor_context_manager(conn, cur):
     finally:
         cur._impl.close()
         conn.close()
-
-
-if __name__ == '__main__':
-    import time
-    postgres_manager = PostgresStore('wallet_db', 'wallet_user', 'wallet_pass', 'postgres.1mginfra.com', 5432,
-                                     use_pool=True)
-    print(postgres_manager)
-    time.sleep(100)
