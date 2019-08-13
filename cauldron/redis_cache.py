@@ -4,6 +4,7 @@ from asyncio import coroutine
 from functools import wraps
 import json
 import hashlib
+import inspect
 allowed_types_for_caching = [str, int, list, tuple, float, dict, bool]
 
 class RedisCache:
@@ -285,7 +286,10 @@ class RedisCache:
                 result = yield from RedisCache.get_key(digest_key, name_space)
                 if result:
                     return json.loads(result)
-                result = yield from func(*args, **kwargs)
+                if inspect.isgeneratorfunction(func):
+                    result = yield from func(*args, **kwargs)
+                else:
+                    result = func(*args, **kwargs)
                 yield from RedisCache.set_key(digest_key, json.dumps(result), name_space, expire_time)
                 return result
 

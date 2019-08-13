@@ -12,7 +12,7 @@ import psycopg2
 
 _CursorType = Enum('CursorType', 'PLAIN, DICT, NAMEDTUPLE')
 
-
+USE_REPLICA = 'use_replica'
 def dict_cursor(func):
     """
     Decorator that provides a dictionary cursor to the calling function
@@ -51,7 +51,7 @@ def cursor(func):
 
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor()) as c:
+        with (yield from cls.get_cursor(use_replica=kwargs.get(USE_REPLICA))) as c:
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
@@ -73,7 +73,7 @@ def nt_cursor(func):
 
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
-        with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE)) as c:
+        with (yield from cls.get_cursor(_CursorType.NAMEDTUPLE, kwargs.get(USE_REPLICA))) as c:
             return (yield from func(cls, c, *args, **kwargs))
 
     return wrapper
@@ -110,6 +110,8 @@ def transaction(func):
 
 class PostgresStore:
     _pool = None
+    _replica_pool = None
+    _replica_connection_params = {}
     _connection_params = {}
     _use_pool = None
     _insert_string = "insert into {} ({}) values ({}) returning *;"
@@ -140,12 +142,13 @@ class PostgresStore:
     _PLACEHOLDER = ' %s,'
     _COMMA = ', '
     _pool_pending = asyncio.Semaphore(1)
+    _replica_pool_pending = asyncio.Semaphore(1)
     _return_val = ' returning *;'
 
     @classmethod
     def connect(cls, database: str, user: str, password: str, host: str, port: int, *, use_pool: bool=True,
                 enable_ssl: bool=False, minsize=1, maxsize=10, keepalives_idle=5, keepalives_interval=4, echo=False,
-                refresh_period=-1,
+                refresh_period=-1, replicahost='',
                 **kwargs):
         """
         Sets connection parameters
@@ -166,6 +169,20 @@ class PostgresStore:
         cls._connection_params.update(kwargs)
         cls._use_pool = use_pool
         cls.refresh_period = refresh_period
+        
+        if replicahost:
+            cls._replica_connection_params['database'] = database
+            cls._replica_connection_params['user'] = user
+            cls._replica_connection_params['password'] = password
+            cls._replica_connection_params['host'] = replicahost
+            cls._replica_connection_params['port'] = port
+            cls._replica_connection_params['sslmode'] = 'prefer' if enable_ssl else 'disable'
+            cls._replica_connection_params['minsize'] = minsize
+            cls._replica_connection_params['maxsize'] = maxsize
+            cls._replica_connection_params['keepalives_idle'] = keepalives_idle
+            cls._replica_connection_params['keepalives_interval'] = keepalives_interval
+            cls._replica_connection_params['echo'] = echo
+            cls._replica_connection_params.update(kwargs)
 
     @classmethod
     def use_pool(cls, pool: Pool):
@@ -176,45 +193,67 @@ class PostgresStore:
 
     @classmethod
     @coroutine
-    def get_pool(cls) -> Pool:
+    def _get_pool(cls, _conn_params, _conn_pool_pending, _pool, _is_replica):
         """
         Yields:
             existing db connection pool
         """
-        if len(cls._connection_params) < 5:
+        if len(_conn_params) < 5:
             raise ConnectionError('Please call SQLStore.connect before calling this method')
-        if not cls._pool:
-            with (yield from cls._pool_pending):
-                if not cls._pool:
-                    cls._pool = yield from create_pool(**cls._connection_params)
-                    asyncio.async(cls._periodic_cleansing())
-        return cls._pool
+        if not _pool:
+            with (yield from _conn_pool_pending):
+                if not _pool:
+                    _pool = yield from create_pool(**_conn_params)
+                    asyncio.async(cls._periodic_cleansing(_is_replica))
+                    
+        return _pool
+    
+    @classmethod
+    @coroutine
+    def get_pool(cls, _use_replica=False):
+        """
+        :param cls:
+        :param _use_replica:
+        :return:
+        """
+
+        if _use_replica:
+            cls._replica_pool = yield from  cls._get_pool(cls._replica_connection_params, cls._replica_pool_pending, cls._replica_pool, _use_replica)
+            return cls._replica_pool
+        else:
+            cls._pool = yield from cls._get_pool(cls._connection_params, cls._pool_pending, cls._pool, _use_replica)
+            return cls._pool
 
     @classmethod
     @coroutine
-    def _periodic_cleansing(cls):
+    def _periodic_cleansing(cls, _is_replica):
         """
         Periodically cleanses idle connections in pool
         """
         if cls.refresh_period > 0:
             yield from asyncio.sleep(cls.refresh_period * 60)
             logging.getLogger().info("Clearing unused DB connections")
-            yield from cls._pool.clear()
-            asyncio.async(cls._periodic_cleansing())
+            if _is_replica:
+                yield from cls._replica_pool.clear()
+            else:
+                yield from cls._pool.clear()
+            asyncio.async(cls._periodic_cleansing(_is_replica))
 
 
     @classmethod
     @coroutine
-    def get_cursor(cls, cursor_type=_CursorType.PLAIN) -> Cursor:
+    def get_cursor(cls, cursor_type=_CursorType.PLAIN, use_replica=False) -> Cursor:
         """
         Yields:
             new client-side cursor from existing db connection pool
         """
-        _cur = None
         if cls._use_pool:
-            _connection_source = yield from cls.get_pool()
+            _connection_source = yield from cls.get_pool(use_replica)
         else:
-            _connection_source = yield from aiopg.connect(echo=False, **cls._connection_params)
+            if use_replica:
+                _connection_source = yield from aiopg.connect(echo=False, **cls_replica_connection_params)
+            else:
+                _connection_source = yield from aiopg.connect(echo=False, **cls._connection_params)
 
         if cursor_type == _CursorType.PLAIN:
             _cur = yield from _connection_source.cursor()
@@ -231,7 +270,7 @@ class PostgresStore:
     @classmethod
     @coroutine
     @cursor
-    def count(cls, cur, table:str, where_keys: list=None):
+    def count(cls, cur, table:str, where_keys: list=None, use_replica=False):
         """
         gives the number of records in the table
 
@@ -364,7 +403,7 @@ class PostgresStore:
     @coroutine
     @nt_cursor
     def select(cls, cur, table: str, order_by: str=None, columns: list=None, where_keys: list=None, limit=100,
-               offset=0, group_by:str = None):
+               offset=0, group_by:str = None, use_replica=False):
         """
         Creates a select query for selective columns with where keys
         Supports multiple where claus with and or or both
@@ -385,6 +424,7 @@ class PostgresStore:
             A list of 'Record' object with table columns as properties
 
         """
+
         if columns:
             columns_string = cls._COMMA.join(columns)
             if group_by:
@@ -452,7 +492,7 @@ class PostgresStore:
     @classmethod
     @coroutine
     @nt_cursor
-    def raw_sql(cls, cur, query: str, values: tuple):
+    def raw_sql(cls, cur, query: str, values: tuple, use_replica=False):
         """
         Run a raw sql query
 
