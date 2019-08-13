@@ -388,14 +388,32 @@ class RedisCacheV2:
             return (yield from redis.get(key, encoding=self._utf8))
 
     @coroutine
-    def hmget(self, fields, namespace=''):
+    def hget(self, key, field, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
         with (yield from self.get_pool()) as redis:
-            return (yield from redis.hmget(namespace, *fields))
+            return (yield from redis.hget(key, field))
 
     @coroutine
-    def hmset(self, field, value, namespace=''):
+    def hset(self, key, field, value, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
         with (yield from self.get_pool()) as redis:
-            yield from redis.hmset(namespace, field, value)
+            yield from redis.hset(key, field, value)
+
+    @coroutine
+    def hmget(self, key, field, *fields, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
+        with (yield from self.get_pool()) as redis:
+            return (yield from redis.hmget(key, field, *fields))
+
+    @coroutine
+    def hmset(self, key, field, value, *pairs, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
+        with (yield from self.get_pool()) as redis:
+            yield from redis.hmset(key, field, value, *pairs)
 
     @coroutine
     def delete(self, key, namespace=None):
@@ -404,15 +422,39 @@ class RedisCacheV2:
                 key = self._get_key(namespace, key)
             yield from redis.delete(key)
 
-    def hdel(self, key, namespace):
+    @coroutine
+    def hdel(self, key, field, *fields, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
         with (yield from self.get_pool()) as redis:
-            if namespace is not None:
-                yield from redis.hdel(namespace, key)
+            return (yield from redis.hdel(key, field, *fields))
 
-    def hgetall(self, namespace):
+    def hgetall(self, key, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
         with (yield from self.get_pool()) as redis:
-            if namespace is not None:
-                return (yield from redis.hgetall(namespace, encoding=self._utf8))
+            return (yield from redis.hgetall(key, encoding=self._utf8))
+
+    @coroutine
+    def lpush(self, key, value, *values, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
+        with (yield from self.get_pool()) as redis:
+            return (yield from redis.lpush(key, value, *values))
+
+    @coroutine
+    def llen(self, key, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
+        with (yield from self.get_pool()) as redis:
+            return (yield from redis.llen(key))
+
+    @coroutine
+    def lrange(self, key, start, stop, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
+        with (yield from self.get_pool()) as redis:
+            return (yield from redis.lrange(key, start, stop))
 
     @coroutine
     def clear_namespace(self, namespace) -> int:
@@ -564,24 +606,3 @@ class RedisCacheV2:
             return apply_cache
 
         return wrapped
-
-    @classmethod
-    @coroutine
-    def lpush(cls, namespace, key, value, *values):
-        key = cls._get_key(namespace, key)
-        with (yield from cls.get_pool()) as redis:
-            return (yield from redis.lpush(key, value, *values))
-
-    @classmethod
-    @coroutine
-    def llen(cls, namespace, key):
-        key = cls._get_key(namespace, key)
-        with (yield from cls.get_pool()) as redis:
-            return (yield from redis.llen(key))
-
-    @classmethod
-    @coroutine
-    def lrange(cls, namespace, key, start, stop):
-        key = cls._get_key(namespace, key)
-        with (yield from cls.get_pool()) as redis:
-            return (yield from redis.lrange(key, start, stop))
