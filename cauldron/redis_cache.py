@@ -399,7 +399,7 @@ class RedisCacheV2:
     @coroutine
     def mget(self, *keys):
         with (yield from self.get_pool()) as redis:
-            return (yield from redis.mget(*keys))
+            return (yield from redis.mget(*keys, encoding=self._utf8))
 
     @coroutine
     def hmget(self, fields, namespace=''):
