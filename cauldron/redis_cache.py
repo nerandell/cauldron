@@ -392,6 +392,16 @@ class RedisCacheV2:
             return (yield from redis.get(key, encoding=self._utf8))
 
     @coroutine
+    def mset(self, *pairs):
+        with (yield from self.get_pool()) as redis:
+            return (yield from redis.mset(*pairs))
+
+    @coroutine
+    def mget(self, *keys):
+        with (yield from self.get_pool()) as redis:
+            return (yield from redis.mget(*keys, encoding=self._utf8))
+
+    @coroutine
     def hmget(self, fields, namespace=''):
         with (yield from self.get_pool()) as redis:
             return (yield from redis.hmget(namespace, *fields))
@@ -417,6 +427,27 @@ class RedisCacheV2:
         with (yield from self.get_pool()) as redis:
             if namespace is not None:
                 return (yield from redis.hgetall(namespace, encoding=self._utf8))
+
+    @coroutine
+    def lpush(self, key, value, *values, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
+        with (yield from self.get_pool()) as redis:
+            return (yield from redis.lpush(key, value, *values))
+
+    @coroutine
+    def llen(self, key, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
+        with (yield from self.get_pool()) as redis:
+            return (yield from redis.llen(key))
+
+    @coroutine
+    def lrange(self, key, start, stop, namespace=None):
+        if namespace:
+            key = self._get_key(namespace, key)
+        with (yield from self.get_pool()) as redis:
+            return (yield from redis.lrange(key, start, stop))
 
     @coroutine
     def clear_namespace(self, namespace) -> int:
@@ -568,24 +599,3 @@ class RedisCacheV2:
             return apply_cache
 
         return wrapped
-
-    @classmethod
-    @coroutine
-    def lpush(cls, namespace, key, value, *values):
-        key = cls._get_key(namespace, key)
-        with (yield from cls.get_pool()) as redis:
-            return (yield from redis.lpush(key, value, *values))
-
-    @classmethod
-    @coroutine
-    def llen(cls, namespace, key):
-        key = cls._get_key(namespace, key)
-        with (yield from cls.get_pool()) as redis:
-            return (yield from redis.llen(key))
-
-    @classmethod
-    @coroutine
-    def lrange(cls, namespace, key, start, stop):
-        key = cls._get_key(namespace, key)
-        with (yield from cls.get_pool()) as redis:
-            return (yield from redis.lrange(key, start, stop))
