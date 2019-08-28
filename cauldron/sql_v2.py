@@ -196,7 +196,7 @@ class PostgresStoreV2:
         if self.refresh_period > 0:
             yield from asyncio.sleep(self.refresh_period * 60)
             logging.getLogger().info("Clearing unused DB connections")
-            if self._pool():
+            if self._pool:
                 yield from self._pool.clear()
             asyncio.async(self._periodic_cleansing())
 
