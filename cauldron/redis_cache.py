@@ -109,6 +109,22 @@ class RedisCache:
 
     @classmethod
     @coroutine
+    def set_key_sadd(cls, key, value, namespace=None):
+        with (yield from cls.get_pool()) as redis:
+            if namespace is not None:
+                key = cls._get_key(namespace, key)
+            yield from redis.sadd(key, value)
+
+    @classmethod
+    @coroutine
+    def get_key_sadd(cls, key, value, namespace=None):
+        with (yield from cls.get_pool()) as redis:
+            if namespace is not None:
+                key = cls._get_key(namespace, key)
+            return (yield from redis.sismember(key, value))
+
+    @classmethod
+    @coroutine
     def hmget(cls, fields, namespace=''):
         with (yield from cls.get_pool()) as redis:
             return (yield from redis.hmget(namespace, *fields))
