@@ -357,6 +357,27 @@ class RedisCache:
         with (yield from cls.get_pool()) as redis:
             return (yield from redis.zrange(key, start, stop, withscores))
 
+    @classmethod
+    @coroutine
+    def zrangebyscore(cls, key, namespace=None, min=float('-inf'), max=float('inf'),
+                      withscores=False, offset=None, count=None):
+        if namespace is not None:
+          key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.zrangebyscore(key, min, max, withscores, offset, count))
+
+    def zrem(cls, key, namespace, member, *members):
+        if namespace is not None:
+          key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.zrem(key, member, *members))
+
+    def zremrangebyscore(cls, key, namespace, min=float('-inf'), max=float('inf')):
+        if namespace is not None:
+          key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.zremrangebyscore(key, min, max))
+
 class RedisCacheV2:
     _utf8 = 'utf-8'
 
@@ -637,19 +658,3 @@ class RedisCacheV2:
             return apply_cache
 
         return wrapped
-
-    @classmethod
-    @coroutine
-    def zadd(cls, key, score, member, namespace=None, *pairs):
-      with (yield from cls.get_pool()) as redis:
-        if namespace is not None:
-          key = cls._get_key(namespace, key)
-      return (yield from redis.zadd(key, score, member, *pairs))
-
-    @classmethod
-    @coroutine
-    def zrange(cls, key, start, stop, withscores=False, namespace=None):
-        if namespace is not None:
-          key = cls._get_key(namespace, key)
-        with (yield from cls.get_pool()) as redis:
-            return (yield from redis.zrange(key, start, stop, withscores))
