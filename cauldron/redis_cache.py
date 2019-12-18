@@ -349,6 +349,13 @@ class RedisCache:
           key = cls._get_key(namespace, key)
       return (yield from redis.zadd(key, score, member, *pairs))
 
+    @classmethod
+    @coroutine
+    def zrange(cls, key, start, stop, withscores=False, namespace=None):
+        if namespace is not None:
+          key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.zrange(key, start, stop, withscores))
 
 class RedisCacheV2:
     _utf8 = 'utf-8'
@@ -638,3 +645,11 @@ class RedisCacheV2:
         if namespace is not None:
           key = cls._get_key(namespace, key)
       return (yield from redis.zadd(key, score, member, *pairs))
+
+    @classmethod
+    @coroutine
+    def zrange(cls, key, start, stop, withscores=False, namespace=None):
+        if namespace is not None:
+          key = cls._get_key(namespace, key)
+        with (yield from cls.get_pool()) as redis:
+            return (yield from redis.zrange(key, start, stop, withscores))
