@@ -637,4 +637,4 @@ class RedisCacheV2:
       with (yield from cls.get_pool()) as redis:
         if namespace is not None:
           key = cls._get_key(namespace, key)
-          return (yield from redis.zadd(key, score, member, *pairs))
+      return (yield from redis.zadd(key, score, member, *pairs))
