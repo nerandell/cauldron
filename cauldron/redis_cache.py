@@ -359,12 +359,11 @@ class RedisCache:
 
     @classmethod
     @coroutine
-    def zrangebyscore(cls, key, namespace=None, min=float('-inf'), max=float('inf'),
-                      withscores=False, offset=None, count=None,exclude=None):
+    def zrangebyscore(cls, key, namespace=None, min=float('-inf'), max=float('inf'), withscores=False, offset=None, count=None):
         if namespace is not None:
           key = cls._get_key(namespace, key)
         with (yield from cls.get_pool()) as redis:
-            return (yield from redis.zrangebyscore(key, min, max, withscores, offset, count, exclude))
+            return (yield from redis.zrangebyscore(key, min, max, withscores, offset, count))
 
     @classmethod
     @coroutine
