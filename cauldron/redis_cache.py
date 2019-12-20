@@ -367,7 +367,7 @@ class RedisCache:
 
     @classmethod
     @coroutine
-    def zrem(cls, key, namespace=None, member, *members):
+    def zrem(cls, key,  member, namespace=None, *members):
         if namespace is not None:
           key = cls._get_key(namespace, key)
         with (yield from cls.get_pool()) as redis:
