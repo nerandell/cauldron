@@ -367,7 +367,7 @@ class RedisCache:
 
     @classmethod
     @coroutine
-    def zrem(cls, key, namespace, member, *members):
+    def zrem(cls, key, namespace=None, member, *members):
         if namespace is not None:
           key = cls._get_key(namespace, key)
         with (yield from cls.get_pool()) as redis:
@@ -375,7 +375,7 @@ class RedisCache:
 
     @classmethod
     @coroutine
-    def zremrangebyscore(cls, key, namespace, min=float('-inf'), max=float('inf'), exclude=None):
+    def zremrangebyscore(cls, key, namespace=None, min=float('-inf'), max=float('inf'), exclude=None):
         if namespace is not None:
           key = cls._get_key(namespace, key)
         with (yield from cls.get_pool()) as redis:
