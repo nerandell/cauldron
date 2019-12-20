@@ -360,23 +360,27 @@ class RedisCache:
     @classmethod
     @coroutine
     def zrangebyscore(cls, key, namespace=None, min=float('-inf'), max=float('inf'),
-                      withscores=False, offset=None, count=None):
+                      withscores=False, offset=None, count=None,exclude=None):
         if namespace is not None:
           key = cls._get_key(namespace, key)
         with (yield from cls.get_pool()) as redis:
-            return (yield from redis.zrangebyscore(key, min, max, withscores, offset, count))
+            return (yield from redis.zrangebyscore(key, min, max, withscores, offset, count, exclude))
 
+    @classmethod
+    @coroutine
     def zrem(cls, key, namespace, member, *members):
         if namespace is not None:
           key = cls._get_key(namespace, key)
         with (yield from cls.get_pool()) as redis:
             return (yield from redis.zrem(key, member, *members))
 
-    def zremrangebyscore(cls, key, namespace, min=float('-inf'), max=float('inf')):
+    @classmethod
+    @coroutine
+    def zremrangebyscore(cls, key, namespace, min=float('-inf'), max=float('inf'), exclude=None):
         if namespace is not None:
           key = cls._get_key(namespace, key)
         with (yield from cls.get_pool()) as redis:
-            return (yield from redis.zremrangebyscore(key, min, max))
+            return (yield from redis.zremrangebyscore(key, min, max, exclude))
 
 class RedisCacheV2:
     _utf8 = 'utf-8'
