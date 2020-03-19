@@ -67,6 +67,14 @@ class RedisCache:
             yield from redis.set(key, value, expire=expire)
 
     @classmethod
+    def get_next_sequence_number(cls, key, namespace=None):
+        # Increments key with 1 and returns value
+        with (yield from cls.get_pool()) as redis:
+            if namespace is not None:
+                key = cls._get_key(namespace, key)
+            return (yield from redis.incr(key))
+
+    @classmethod
     @coroutine
     def increment_value(cls, key, namespace=None):
         # Set a redis key and increment the value by one
