@@ -489,10 +489,10 @@ class RedisCacheV2:
             yield from redis.delete(key)
 
     @coroutine
-    def unlink(cls, *keys, namespace=None):
-        with (yield from cls.get_pool()) as redis:
+    def unlink(self, *keys, namespace=None):
+        with (yield from self.get_pool()) as redis:
             if namespace is not None:
-                keys = [cls._get_key(namespace, key) for key in keys]
+                keys = [self._get_key(namespace, key) for key in keys]
             yield from redis.unlink(*keys)
 
     def hdel(self, key, namespace):
