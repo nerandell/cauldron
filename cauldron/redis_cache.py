@@ -488,11 +488,11 @@ class RedisCacheV2:
                 key = self._get_key(namespace, key)
             yield from redis.delete(key)
 
-    @classmethod
-    def delete_keys(cls, *keys, namespace=None):
-        with (yield from cls.get_pool()) as redis:
+    @coroutine
+    def delete_keys(self, *keys, namespace=None):
+        with (yield from self.get_pool()) as redis:
             if namespace is not None:
-                keys = [cls._get_key(namespace, key) for key in keys]
+                keys = [self._get_key(namespace, key) for key in keys]
             yield from redis.delete(*keys)
 
     def hdel(self, key, namespace):
