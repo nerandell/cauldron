@@ -189,6 +189,14 @@ class RedisCache:
 
     @classmethod
     @coroutine
+    def delete_multiple_keys(cls, keys: list):
+        if not keys:
+            return
+        with (yield from cls.get_pool()) as redis:
+            yield from redis.delete(*keys)
+
+    @classmethod
+    @coroutine
     def delete_by_prefix(cls, prefix, namespace=None):
         prefix_with_namespace = cls._get_key(namespace, prefix) if namespace else prefix
         pattern = '{}*'.format(prefix_with_namespace)
