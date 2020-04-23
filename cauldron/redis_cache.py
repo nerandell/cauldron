@@ -189,7 +189,7 @@ class RedisCache:
 
     @classmethod
     @coroutine
-    def delete_multiple_keys(cls, keys: list):
+    def delete_by_keys(cls, keys: list):
         if not keys:
             return
         with (yield from cls.get_pool()) as redis:
