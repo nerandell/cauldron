@@ -6,4 +6,5 @@ setup(name='cauldron',
       author_email='ankitchandawala@gmail.com',
       url='https://github.com/nerandell/cauldron',
       description='Utils to reduce boilerplate code',
-      packages=['cauldron'], install_requires=['aiopg', 'aioredis', 'psycopg2','elasticsearch'])
+      packages=['cauldron'],
+      install_requires=['aioredis==0.3.3', 'psycopg2==2.8.6', 'aiopg==0.12.0', 'elasticsearch', 'aiohttp==0.17.4'])
