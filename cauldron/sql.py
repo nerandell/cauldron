@@ -116,7 +116,7 @@ class PostgresStore:
     _use_pool = None
     _insert_string = "insert into {} ({}) values ({}) returning *;"
     _bulk_insert_string = "insert into {} ({}) values"
-    _update_string = "update {} set ({}) = ({}) where ({}) returning *;"
+    _update_string = "update {} set {} where ({}) returning *;"
     _select_all_string_with_condition = "select * from {} where ({}) limit {} offset {};"
     _select_all_string_with_condition_group = "select * from {} where ({})  group by {} limit {} offset {};"
     _select_all_string = "select * from {} limit {} offset {};"
@@ -357,10 +357,10 @@ class PostgresStore:
             an integer indicating count of rows deleted
 
         """
-        keys = cls._COMMA.join(values.keys())
-        value_place_holder = cls._PLACEHOLDER * len(values)
+        table_name_place_holder = ["{} = %s".format(key) for key in values.keys()]
+        table_name_place_holder = cls._COMMA.join(table_name_place_holder)
         where_clause, where_values = cls._get_where_clause_with_values(where_keys)
-        query = cls._update_string.format(table, keys, value_place_holder[:-1], where_clause)
+        query = cls._update_string.format(table, table_name_place_holder, where_clause)
         yield from cur.execute(query, (tuple(values.values()) + where_values))
         return (yield from cur.fetchall())
 
