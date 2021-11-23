@@ -309,10 +309,10 @@ class PostgresStoreV2:
             an integer indicating count of rows deleted
 
         """
-        keys = self._COMMA.join(values.keys())
-        value_place_holder = self._PLACEHOLDER * len(values)
-        where_clause, where_values = self._get_where_clause_with_values(where_keys)
-        query = self._update_string.format(table, keys, value_place_holder[:-1], where_clause)
+        table_name_place_holder = ["{} = %s".format(key) for key in values.keys()]
+        table_name_place_holder = cls._COMMA.join(table_name_place_holder)
+        where_clause, where_values = cls._get_where_clause_with_values(where_keys)
+        query = cls._update_string.format(table, table_name_place_holder, where_clause)
         yield from cur.execute(query, (tuple(values.values()) + where_values))
         return (yield from cur.fetchall())
 
