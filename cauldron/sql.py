@@ -116,7 +116,7 @@ class PostgresStore:
     _use_pool = None
     _insert_string = "insert into {} ({}) values ({}) returning *;"
     _bulk_insert_string = "insert into {} ({}) values"
-    _update_string = "update {} set {} where ({}) returning *;"
+    _update_string = "update {} set ({}) = row({}) where ({}) returning *;"
     _select_all_string_with_condition = "select * from {} where ({}) limit {} offset {};"
     _select_all_string_with_condition_group = "select * from {} where ({})  group by {} limit {} offset {};"
     _select_all_string = "select * from {} limit {} offset {};"
